@@ -1,0 +1,32 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - zookeeper.zncdata.dev
+  resources:
+  - zookeeperclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - zookeeper.zncdata.dev
+  resources:
+  - zookeeperclusters/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - zookeeper.zncdata.dev
+  resources:
+  - zookeeperclusters/status
+  verbs:
+  - get
+  - patch
+  - update
