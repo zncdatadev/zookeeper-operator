@@ -1,0 +1,31 @@
+# permissions for end users to edit zookeeperznodes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: zookeeperznode-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: zookeeper-operator
+    app.kubernetes.io/part-of: zookeeper-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: zookeeperznode-editor-role
+rules:
+- apiGroups:
+  - zookeeper.zncdata.dev
+  resources:
+  - zookeeperznodes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - zookeeper.zncdata.dev
+  resources:
+  - zookeeperznodes/status
+  verbs:
+  - get
