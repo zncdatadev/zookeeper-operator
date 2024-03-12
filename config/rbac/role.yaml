@@ -30,3 +30,29 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - zookeeper.zncdata.dev
+  resources:
+  - zookeeperznodes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - zookeeper.zncdata.dev
+  resources:
+  - zookeeperznodes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - zookeeper.zncdata.dev
+  resources:
+  - zookeeperznodes/status
+  verbs:
+  - get
+  - patch
+  - update
