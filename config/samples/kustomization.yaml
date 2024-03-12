@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- zookeeper_v1alpha1_zookeepercluster.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples
