@@ -1,0 +1,49 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+  name: zookeeper-operator.v0.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: ZookeeperCluster is the Schema for the zookeeperclusters API
+      displayName: Zookeeper Cluster
+      kind: ZookeeperCluster
+      name: zookeeperclusters.zookeeper.zncdata.dev
+      version: v1alpha1
+  description: zookeeper operator
+  displayName: \zookeeper-operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - zookeeper
+  - operator
+  links:
+  - name: Zookeeper Operator
+    url: https://zookeeper-operator.domain
+  maintainers:
+  - email: lwpk110@163.com
+    name: luwei
+  maturity: alpha
+  provider:
+    name: zncdata-labs
+    url: https://github.com/zncdata-labs/zookeeper-operator
+  version: 0.0.0
