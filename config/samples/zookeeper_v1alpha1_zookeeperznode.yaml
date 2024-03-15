@@ -9,4 +9,11 @@ metadata:
     app.kubernetes.io/created-by: zookeeper-operator
   name: zookeeperznode-sample
 spec:
-  # TODO(user): Add fields here
+  clusterRef:
+    name: zookeepercluster-sample
+
+
+
+
+
+

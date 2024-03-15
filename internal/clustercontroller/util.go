@@ -17,9 +17,20 @@ func createZooServerNetworkName(instanceName string, replicates int32, minServer
 	var zooServers string
 	for i := int32(0); i < replicates; i++ {
 		zooServers += fmt.Sprintf("%s-%d.%s.%s.svc.%s:%d:%d::%d,", instanceName, i, svcName, ns, clusterDomain,
-			zkv1alpha1.FollowerPort, zkv1alpha1.ElectionPort, i+minServerId)
+			zkv1alpha1.FollowerPort, zkv1alpha1.ElectionPort, i+1)
 	}
 	return zooServers
+}
+
+// create client connection string
+func createClientConnectionString(instanceName string, replicates int32, svcName string, ns string,
+	clusterDomain string) string {
+	var clientConnectionString string
+	for i := int32(0); i < replicates; i++ {
+		clientConnectionString += fmt.Sprintf("%s-%d.%s.%s.svc.%s:%d,", instanceName, i, svcName, ns,
+			clusterDomain, zkv1alpha1.ServiceClientPort)
+	}
+	return clientConnectionString
 }
 
 func createHeadlessServiceName(instanceName string, groupName string) string {
@@ -30,8 +41,8 @@ func createClusterConfigName(instanceName string) string {
 	return fmt.Sprintf("%s-config", instanceName)
 }
 
-func createScriptConfigName(instanceName string, groupName string) string {
-	return common.NewResourceNameGeneratorOneRole(instanceName, groupName).GenerateResourceName("script")
+func createScriptConfigName(instanceName string) string {
+	return fmt.Sprintf("%s-scripts", instanceName)
 }
 
 func createServiceAccountName(instanceName string, groupName string) string {

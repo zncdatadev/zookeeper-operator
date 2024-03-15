@@ -17,7 +17,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"github.com/zncdata-labs/operator-go/pkg/status"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -50,8 +49,17 @@ type ZookeeperCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ZookeeperClusterSpec `json:"spec,omitempty"`
-	Status status.Status        `json:"status,omitempty"`
+	Spec   ZookeeperClusterSpec   `json:"spec,omitempty"`
+	Status ZookeeperClusterStatus `json:"status,omitempty"`
+}
+
+type ZookeeperClusterStatus struct {
+	// +kubebuilder:validation:Optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	// +kubebuilder:validation:Optional
+	ClientConnections map[string]string `json:"clientConnections"`
+	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+	// Important: Run "make" to regenerate code after modifying this file
 }
 
 //+kubebuilder:object:root=true
@@ -66,16 +74,16 @@ type ZookeeperClusterList struct {
 // ZookeeperClusterSpec defines the desired state of ZookeeperCluster
 type ZookeeperClusterSpec struct {
 	// +kubebuilder:validation:Required
-	Image ImageSpec `json:"image"`
+	Image *ImageSpec `json:"image"`
 	// +kubebuilder:validation:Required
-	ClusterConfig ClusterConfigSpec `json:"clusterConfig"`
+	ClusterConfig *ClusterConfigSpec `json:"clusterConfig"`
 	// +kubebuilder:validation:Required
-	Server ServerSpec `json:"server"`
+	Server *ServerSpec `json:"server"`
 }
 
 type ImageSpec struct {
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default=trinodb/TrinoCluster
+	// +kubebuilder:default=bitnami/zookeeper
 	Repository string `json:"repository,omitempty"`
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default:="423"
@@ -132,6 +140,7 @@ type RoleGroupSpec struct {
 	// +kubebuilder:default:=1
 	Replicas int32 `json:"replicas,omitempty"`
 
+	// +kubebuilder:validation:Required
 	Config *ConfigSpec `json:"config,omitempty"`
 
 	// +kubebuilder:validation:Optional

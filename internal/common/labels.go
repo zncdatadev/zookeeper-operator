@@ -14,6 +14,6 @@ func (r *RoleLabels[T]) GetLabels() map[string]string {
 	return map[string]string{
 		"app.kubernetes.io/Name":       strings.ToLower(r.Cr.GetName()),
 		"app.kubernetes.io/component":  r.Name,
-		"app.kubernetes.io/managed-by": "trino-operator",
+		"app.kubernetes.io/managed-by": "zookeeper-operator",
 	}
 }

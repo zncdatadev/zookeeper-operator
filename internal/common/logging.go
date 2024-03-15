@@ -1,8 +1,8 @@
 package common
 
-/*import (
+import (
 	"context"
-	trinov1alpha1 "github.com/zncdata-labs/trino-operator/api/v1alpha1"
+	zkv1alpha1 "github.com/zncdata-labs/zookeeper-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -16,7 +16,7 @@ type RoleLoggingDataBuilder interface {
 }
 
 type LoggingRecociler struct {
-	GeneralResourceStyleReconciler[*trinov1alpha1.TrinoCluster, any]
+	GeneralResourceStyleReconciler[*zkv1alpha1.ZookeeperCluster, any]
 	RoleLoggingDataBuilder RoleLoggingDataBuilder
 	role                   Role
 }
@@ -24,7 +24,7 @@ type LoggingRecociler struct {
 // NewLoggingReconciler new logging reconcile
 func NewLoggingReconciler(
 	scheme *runtime.Scheme,
-	instance *trinov1alpha1.TrinoCluster,
+	instance *zkv1alpha1.ZookeeperCluster,
 	client client.Client,
 	groupName string,
 	mergedLabels map[string]string,
@@ -33,7 +33,7 @@ func NewLoggingReconciler(
 	role Role,
 ) *LoggingRecociler {
 	return &LoggingRecociler{
-		GeneralResourceStyleReconciler: *NewGeneraResourceStyleReconciler[*trinov1alpha1.TrinoCluster, any](
+		GeneralResourceStyleReconciler: *NewGeneraResourceStyleReconciler[*zkv1alpha1.ZookeeperCluster, any](
 			scheme,
 			instance,
 			client,
@@ -62,4 +62,3 @@ func (l *LoggingRecociler) Build(_ context.Context) (client.Object, error) {
 	}
 	return obj, nil
 }
-*/

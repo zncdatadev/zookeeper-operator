@@ -174,9 +174,11 @@ func (s *GeneralResourceStyleReconciler[T, G]) DoReconcile(
 // this reconciler is used to reconcile the configuration style resources
 // such as configMap, secret, etc.
 // it will do the following things:
-// 1. apply the resource
+//  1. build resource
+//  1. apply the resource
+//
 // Additional:
-// 1. configuration override support
+//  1. configuration override support
 type ConfigurationStyleReconciler[T client.Object, G any] struct {
 	GeneralResourceStyleReconciler[T, G]
 }
@@ -219,17 +221,20 @@ func (s *ConfigurationStyleReconciler[T, G]) DoReconcile(
 // WorkloadStyleReconciler deployment style reconciler
 // this reconciler is used to reconcile the deployment style resources
 // such as deployment, statefulSet, etc.
-// it will do the following things:
-// 1. apply the resource
-// 2. check if the resource is satisfied
-// 3. if not, return requeue
-// 4. if satisfied, return nil
-// Additional:
 //
-//	command and env override can support
+// it will do the following things:
+//  0. build resource
+//  1. apply the resource
+//  2. check if the resource is satisfied
+//  3. if not, return requeue
+//  4. if satisfied, return nil
+//
+// Additional:
+//  1. command and env override can support
+//  2. logging override can support
 type WorkloadStyleReconciler[T client.Object, G any] struct {
 	BaseResourceReconciler[T, G]
-	replicas int32
+	Replicas int32
 }
 
 func NewWorkloadStyleReconciler[T client.Object, G any](
@@ -249,7 +254,7 @@ func NewWorkloadStyleReconciler[T client.Object, G any](
 			groupName,
 			mergedLabels,
 			mergedCfg),
-		replicas: replicas,
+		Replicas: replicas,
 	}
 }
 
@@ -319,7 +324,7 @@ func (s *WorkloadStyleReconciler[T, G]) CheckPodsSatisfied(ctx context.Context) 
 		return false, err
 	}
 
-	return len(pods.Items) == int(s.replicas), nil
+	return len(pods.Items) == int(s.Replicas), nil
 }
 
 func (s *WorkloadStyleReconciler[T, G]) updateStatus(

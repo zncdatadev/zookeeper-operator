@@ -78,7 +78,7 @@ spec:
                       a container image
                     type: string
                   repository:
-                    default: trinodb/TrinoCluster
+                    default: bitnami/zookeeper
                     type: string
                   tag:
                     default: "423"
@@ -1176,7 +1176,7 @@ spec:
                         type: object
                       logging:
                         properties:
-                          TrinoCluster:
+                          ZookeeperCluster:
                             properties:
                               console:
                                 description: LogLevelSpec level mapping example |---------------------|-----------------|
@@ -2723,7 +2723,7 @@ spec:
                               type: object
                             logging:
                               properties:
-                                TrinoCluster:
+                                ZookeeperCluster:
                                   properties:
                                     console:
                                       description: LogLevelSpec level mapping example
@@ -3097,8 +3097,11 @@ spec:
             - server
             type: object
           status:
-            description: Status defines the common status
             properties:
+              clientConnections:
+                additionalProperties:
+                  type: string
+                type: object
               conditions:
                 items:
                   description: "Condition contains details for one aspect of the current
@@ -3165,26 +3168,6 @@ spec:
                   - reason
                   - status
                   - type
-                  type: object
-                type: array
-              generation:
-                format: int64
-                type: integer
-              name:
-                type: string
-              type:
-                type: string
-              urls:
-                items:
-                  description: URL is a URL with a name
-                  properties:
-                    name:
-                      type: string
-                    url:
-                      type: string
-                  required:
-                  - name
-                  - url
                   type: object
                 type: array
             type: object

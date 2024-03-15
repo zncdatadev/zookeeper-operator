@@ -39,13 +39,87 @@ func NewStatefulSet(
 	}
 }
 
-// Build implement the ResourceBuilder interface
-func (s *StatefulSetReconciler) Build(_ context.Context) (client.Object, error) {
-	return nil, nil
+// GetConditions implement the ConditionGetter interface
+func (s *StatefulSetReconciler) GetConditions() *[]metav1.Condition {
+	return &s.Instance.Status.Conditions
 }
 
-// create statefulset for zookeeper cluster
-func (s *StatefulSetReconciler) createStatefulSet() (client.Object, error) {
+// CommandOverride implement the WorkloadOverride interface
+func (s *StatefulSetReconciler) CommandOverride(resource client.Object) {
+	dep := resource.(*appsv1.StatefulSet)
+	containers := dep.Spec.Template.Spec.Containers
+	if cmdOverride := s.MergedCfg.CommandArgsOverrides; cmdOverride != nil {
+		for i := range containers {
+			containers[i].Command = cmdOverride
+		}
+	}
+}
+
+// EnvOverride implement the WorkloadOverride interface
+func (s *StatefulSetReconciler) EnvOverride(resource client.Object) {
+	dep := resource.(*appsv1.StatefulSet)
+	containers := dep.Spec.Template.Spec.Containers
+	if envOverride := s.MergedCfg.EnvOverrides; envOverride != nil {
+		for i := range containers {
+			envVars := containers[i].Env
+			common.OverrideEnvVars(&envVars, s.MergedCfg.EnvOverrides)
+		}
+	}
+}
+
+// LogOverride implement the WorkloadOverride interface
+func (s *StatefulSetReconciler) LogOverride(resource client.Object) {
+	if s.isLoggersOverrideEnabled() {
+		s.logVolumesOverride(resource)
+		s.logVolumeMountsOverride(resource)
+	}
+}
+
+// is loggers override enabled
+func (s *StatefulSetReconciler) isLoggersOverrideEnabled() bool {
+	return s.MergedCfg.Config.Logging != nil
+}
+
+func (s *StatefulSetReconciler) logVolumesOverride(resource client.Object) {
+	dep := resource.(*appsv1.StatefulSet)
+	volumes := dep.Spec.Template.Spec.Volumes
+	if len(volumes) == 0 {
+		volumes = make([]corev1.Volume, 1)
+	}
+	volumes = append(volumes, corev1.Volume{
+		Name: s.logVolumeName(),
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: common.CreateRoleGroupLoggingConfigMapName(s.Instance.Name, string(common.Server),
+						s.GroupName),
+				},
+				Items: []corev1.KeyToPath{
+					{
+						Key:  zkv1alpha1.LogbackFileName,
+						Path: zkv1alpha1.LogbackFileName,
+					},
+				},
+			},
+		},
+	})
+	dep.Spec.Template.Spec.Volumes = volumes
+}
+
+func (s *StatefulSetReconciler) logVolumeMountsOverride(resource client.Object) {
+	dep := resource.(*appsv1.StatefulSet)
+	containers := dep.Spec.Template.Spec.Containers
+	for i := range containers {
+		containers[i].VolumeMounts = append(containers[i].VolumeMounts, corev1.VolumeMount{
+			Name:      s.logVolumeName(),
+			MountPath: "/opt/bitnami/zookeeper/conf" + zkv1alpha1.LogbackFileName,
+			SubPath:   zkv1alpha1.LogbackFileName,
+		})
+	}
+}
+
+// Build implement the ResourceBuilder interface
+func (s *StatefulSetReconciler) Build(_ context.Context) (client.Object, error) {
 	saToken := false
 	obj := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -74,7 +148,22 @@ func (s *StatefulSetReconciler) createStatefulSet() (client.Object, error) {
 			VolumeClaimTemplates: s.createPvcTemplates(),
 		},
 	}
+	// update client connections in status of cluster instance
+	// can be used by znode creation
+	s.appendClientConnections()
 	return obj, nil
+}
+
+// append client connections to status of instance
+func (s *StatefulSetReconciler) appendClientConnections() {
+	connection := createClientConnectionString(s.Instance.Name, s.Replicas,
+		createHeadlessServiceName(s.Instance.Name, s.GroupName), s.Instance.Namespace,
+		s.Instance.Spec.ClusterConfig.ClusterDomain)
+	statusConnections := s.Instance.Status.ClientConnections
+	if statusConnections == nil {
+		statusConnections = make(map[string]string)
+	}
+	statusConnections[s.GroupName] = connection
 }
 
 // create zookeeper container
@@ -88,7 +177,7 @@ func (s *StatefulSetReconciler) createZookeeperContainers() []corev1.Container {
 		Env:             s.createEnvVars(),
 		EnvFrom:         s.createEnvFrom(),
 		Ports:           s.createContainerPorts(),
-		Command:         []string{"/script/setup.sh"},
+		Command:         []string{"/scripts/setup.sh"},
 		VolumeMounts:    s.createVolumesMounts(),
 		LivenessProbe:   s.createHealthLiveProbe(),
 		ReadinessProbe:  s.createReadinessProbe(),
@@ -174,6 +263,7 @@ func (s *StatefulSetReconciler) createVolumesMounts() []corev1.VolumeMount {
 
 // create volumes
 func (s *StatefulSetReconciler) createVolumes() []corev1.Volume {
+	accessMode := int32(493)
 	return []corev1.Volume{
 		{
 			Name: emptyDirVolumeName(),
@@ -185,8 +275,9 @@ func (s *StatefulSetReconciler) createVolumes() []corev1.Volume {
 			Name: scriptVolumeName(),
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
+					DefaultMode: &accessMode,
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: createScriptConfigName(s.Instance.GetName(), s.GroupName),
+						Name: createScriptConfigName(s.Instance.GetName()),
 					},
 				},
 			},
@@ -261,4 +352,9 @@ func (s *StatefulSetReconciler) createPvcTemplates() []corev1.PersistentVolumeCl
 			},
 		},
 	}}
+}
+
+// create log4j2 volume name
+func (s *StatefulSetReconciler) logVolumeName() string {
+	return "log-volume"
 }

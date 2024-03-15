@@ -93,6 +93,7 @@ func main() {
 	if err = (&clustercontroller.ZookeeperClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Log:    setupLog,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ZookeeperCluster")
 		os.Exit(1)
@@ -100,6 +101,7 @@ func main() {
 	if err = (&znodecontroller.ZookeeperZnodeReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Log:    setupLog,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ZookeeperZnode")
 		os.Exit(1)

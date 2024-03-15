@@ -41,7 +41,7 @@ type ZookeeperClusterReconciler struct {
 
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
 func (r *ZookeeperClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.Log.Info("Reconciling instance")
+	r.Log.Info("Reconciling zookeeper cluster instance")
 
 	zookeeper := &zkv1alpha1.ZookeeperCluster{}
 
@@ -50,7 +50,7 @@ func (r *ZookeeperClusterReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			r.Log.Error(err, "unable to fetch ZookeeperCluster")
 			return ctrl.Result{}, err
 		}
-		r.Log.Info("Zookeeper resource not found. Ignoring since object must be deleted")
+		r.Log.Info("Zookeeper-cluster resource not found. Ignoring since object must be deleted")
 		return ctrl.Result{}, nil
 	}
 

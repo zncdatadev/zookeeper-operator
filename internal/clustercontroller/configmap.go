@@ -84,7 +84,7 @@ func (c *ConfigMapReconciler) createScriptConfigmap() (client.Object, error) {
 
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      createScriptConfigName(c.Instance.Name, c.GroupName),
+			Name:      createScriptConfigName(c.Instance.Name),
 			Namespace: c.Instance.Namespace,
 			Labels:    c.MergedLabels,
 		},
@@ -154,6 +154,7 @@ func (c *ConfigMapReconciler) createInitCertsScriptData() string {
 func (c *ConfigMapReconciler) createServerSetupScriptData() string {
 	return `#!/bin/bash
 
+set -ex
 # Execute entrypoint as usual after obtaining ZOO_SERVER_ID
 # check ZOO_SERVER_ID in persistent volume via myid
 # if not present, set based on POD hostname

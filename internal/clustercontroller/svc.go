@@ -11,12 +11,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// ServiceReconciler cluster service reconcile
 type ServiceReconciler struct {
 	common.GeneralResourceStyleReconciler[*zkv1alpha1.ZookeeperCluster, *zkv1alpha1.RoleGroupSpec]
 }
 
-// NewService  new a ServiceHeadlessReconciler
-func NewService(
+// NewClusterService  new a ServiceHeadlessReconciler
+func NewClusterService(
 	scheme *runtime.Scheme,
 	instance *zkv1alpha1.ZookeeperCluster,
 	client client.Client,
@@ -40,7 +41,7 @@ func NewService(
 func (r *ServiceReconciler) Build(_ context.Context) (client.Object, error) {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      createHeadlessServiceName(r.Instance.GetName(), r.GroupName),
+			Name:      common.CreateClusterServiceName(r.Instance.GetName()),
 			Namespace: r.Instance.Namespace,
 			Labels:    r.MergedLabels,
 		},

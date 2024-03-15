@@ -33,13 +33,13 @@ func NewClusterReconciler(client client.Client, scheme *runtime.Scheme, cr *stac
 
 // RegisterRole register role reconciler
 func (c *ClusterReconciler) RegisterRole() {
-	//serverRole := worker.NewRoleWorker(c.scheme, c.cr, c.client, c.Log)
-	//c.roleReconcilers = []common.RoleReconciler{coordinatorRole, workerRole}
+	serverRole := NewRoleServer(c.scheme, c.cr, c.client, c.Log)
+	c.roleReconcilers = []common.RoleReconciler{serverRole}
 }
 
 func (c *ClusterReconciler) RegisterResource() {
-	//cm := NewClusterConfigMap(c.scheme, c.cr, c.client, "", c.cr.Labels, nil)
-	//c.resourceReconcilers = []common.ResourceReconciler{cm}
+	svc := NewClusterService(c.scheme, c.cr, c.client, "", c.cr.Labels, nil)
+	c.resourceReconcilers = []common.ResourceReconciler{svc}
 }
 
 func (c *ClusterReconciler) ReconcileCluster(ctx context.Context) (ctrl.Result, error) {

@@ -7,7 +7,7 @@ package v1alpha1
 
 type ContainerLoggingSpec struct {
 	// +kubebuilder:validation:Optional
-	Trino *LoggingConfigSpec `json:"TrinoCluster,omitempty"`
+	Zookeeper *LoggingConfigSpec `json:"ZookeeperCluster,omitempty"`
 }
 
 type LoggingConfigSpec struct {

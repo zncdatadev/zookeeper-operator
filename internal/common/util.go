@@ -58,14 +58,8 @@ func OverrideEnvVars(origin *[]corev1.EnvVar, override map[string]string) {
 	}
 }
 
-func CreateServiceName(instanceName string, roleName string, groupName string) string {
-	return NewResourceNameGenerator(instanceName, roleName, groupName).GenerateResourceName("")
-}
-func CreateCatalogConfigmapName(instanceName string) string {
-	return NewResourceNameGenerator(instanceName, "", "").GenerateResourceName("catalog")
-}
-func CreateSchemaConfigmapName(instanceName string) string {
-	return NewResourceNameGenerator(instanceName, "", "").GenerateResourceName("schema")
+func CreateClusterServiceName(instanceName string) string {
+	return instanceName + "-cluster"
 }
 
 // CreateRoleGroupLoggingConfigMapName create role group logging config-map name
