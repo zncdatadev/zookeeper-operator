@@ -451,5 +451,4 @@ func (c *GeneralConfigMapReconciler[T, G]) ConfigurationOverride(resource client
 			return
 		}
 	}
-	return
 }

@@ -56,13 +56,13 @@ func (z *ZNodeReconciler) getClusterInstance(ctx context.Context) (*zkv1alpha1.Z
 		return nil, fmt.Errorf("clusterRef is nil")
 	}
 	var namespace string
-	if namespace = clusterRef.Namespace; namespace == "" {
+	if ns := clusterRef.Namespace; ns == "" {
 		namespace = metav1.NamespaceDefault
 	}
 	clusterInstance := &zkv1alpha1.ZookeeperCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      clusterRef.Name,
-			Namespace: clusterRef.Namespace,
+			Namespace: namespace,
 		},
 	}
 	resourceClient := common.NewResourceClient(ctx, z.client, clusterRef.Namespace)
