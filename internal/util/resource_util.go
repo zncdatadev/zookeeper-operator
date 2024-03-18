@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/cisco-open/k8s-objectmatcher/patch"
 	tzkv1alpha1 "github.com/zncdata-labs/zookeeper-operator/api/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -28,6 +29,9 @@ func CreateOrUpdate(ctx context.Context, c client.Client, obj client.Object) (bo
 	current := obj.DeepCopyObject().(client.Object)
 	// Check if the object exists, if not create a new one
 	err := c.Get(ctx, key, current)
+	var calculateOpt = []patch.CalculateOption{
+		patch.IgnoreStatusFields(),
+	}
 	if errors.IsNotFound(err) {
 		if err := patch.DefaultAnnotator.SetLastAppliedAnnotation(obj); err != nil {
 			return false, err
@@ -57,8 +61,10 @@ func CreateOrUpdate(ctx context.Context, c client.Client, obj client.Object) (bo
 					svc.Spec.Ports[i].NodePort = currentSvc.Spec.Ports[i].NodePort
 				}
 			}
+		case *appsv1.StatefulSet:
+			calculateOpt = append(calculateOpt, patch.IgnoreVolumeClaimTemplateTypeMetaAndStatus())
 		}
-		result, err := patch.DefaultPatchMaker.Calculate(current, obj, patch.IgnoreStatusFields())
+		result, err := patch.DefaultPatchMaker.Calculate(current, obj, calculateOpt...)
 		if err != nil {
 			logger.Error(err, "failed to calculate patch to match objects, moving on to update")
 			// if there is an error with matching, we still want to update

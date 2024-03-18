@@ -335,6 +335,7 @@ func (s *StatefulSetReconciler) createReadinessProbe() *corev1.Probe {
 
 // create pvc template
 func (s *StatefulSetReconciler) createPvcTemplates() []corev1.PersistentVolumeClaim {
+	mode := corev1.PersistentVolumeFilesystem
 	return []corev1.PersistentVolumeClaim{{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      createDataPvcName(),
@@ -344,6 +345,7 @@ func (s *StatefulSetReconciler) createPvcTemplates() []corev1.PersistentVolumeCl
 			AccessModes: []corev1.PersistentVolumeAccessMode{
 				corev1.ReadWriteOnce,
 			},
+			VolumeMode: &mode,
 			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceStorage: resource.MustParse(s.MergedCfg.Config.StorageSize),
