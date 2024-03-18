@@ -409,7 +409,8 @@ func (s *MultiConfigurationStyleReconciler[T, G]) ReconcileResource(
 // 1. resourceBuilerFunc: a function to create a new resource
 type GeneralConfigMapReconciler[T client.Object, G any] struct {
 	GeneralResourceStyleReconciler[T, G]
-	resourceBuilderFunc func() (client.Object, error)
+	resourceBuilderFunc       func() (client.Object, error)
+	configurationOverrideFunc func() error
 }
 
 // NewGeneralConfigMap new a GeneralConfigMapReconciler
@@ -421,6 +422,7 @@ func NewGeneralConfigMap[T client.Object, G any](
 	mergedLabels map[string]string,
 	mergedCfg G,
 	resourceBuilderFunc func() (client.Object, error),
+	configurationOverrideFunc func() error,
 
 ) *GeneralConfigMapReconciler[T, G] {
 	return &GeneralConfigMapReconciler[T, G]{
@@ -431,11 +433,23 @@ func NewGeneralConfigMap[T client.Object, G any](
 			groupName,
 			mergedLabels,
 			mergedCfg),
-		resourceBuilderFunc: resourceBuilderFunc,
+		resourceBuilderFunc:       resourceBuilderFunc,
+		configurationOverrideFunc: configurationOverrideFunc,
 	}
 }
 
 // Build implements the ResourceBuilder interface
 func (c *GeneralConfigMapReconciler[T, G]) Build(_ context.Context) (client.Object, error) {
 	return c.resourceBuilderFunc()
+}
+
+// ConfigurationOverride implement ConfigurationOverride interface
+func (c *GeneralConfigMapReconciler[T, G]) ConfigurationOverride(resource client.Object) {
+	if c.configurationOverrideFunc != nil {
+		err := c.configurationOverrideFunc()
+		if err != nil {
+			return
+		}
+	}
+	return
 }

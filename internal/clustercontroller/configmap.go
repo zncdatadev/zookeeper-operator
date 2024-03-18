@@ -54,7 +54,7 @@ func (c *ConfigMapReconciler) createServerConfigmapReconciler() common.ResourceB
 		c.GroupName,
 		c.MergedLabels,
 		c.MergedCfg,
-		c.createServerConfigmap)
+		c.createServerConfigmap, nil)
 }
 
 // create configmap for zookeeper script
@@ -66,7 +66,7 @@ func (c *ConfigMapReconciler) createScriptConfigmapReconciler() common.ResourceB
 		c.GroupName,
 		c.MergedLabels,
 		c.MergedCfg,
-		c.createScriptConfigmap)
+		c.createScriptConfigmap, nil)
 }
 
 func (c *ConfigMapReconciler) createServerConfigmap() (client.Object, error) {
@@ -118,7 +118,7 @@ func (c *ConfigMapReconciler) makeServerEnvData() map[string]string {
 		"ZOO_LOG_LEVEL":              "ERROR",
 		"ALLOW_ANONYMOUS_LOGIN":      "yes",
 	}
-	if extraEnv := c.Instance.Spec.ClusterConfig.ExtraEnv; extraEnv != nil {
+	if extraEnv := c.MergedCfg.Config.ExtraEnv; extraEnv != nil {
 		for k, v := range extraEnv {
 			data[k] = v
 		}

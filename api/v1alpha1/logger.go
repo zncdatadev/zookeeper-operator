@@ -7,7 +7,7 @@ package v1alpha1
 
 type ContainerLoggingSpec struct {
 	// +kubebuilder:validation:Optional
-	Zookeeper *LoggingConfigSpec `json:"ZookeeperCluster,omitempty"`
+	Zookeeper *LoggingConfigSpec `json:"zookeeperCluster,omitempty"`
 }
 
 type LoggingConfigSpec struct {
@@ -18,7 +18,7 @@ type LoggingConfigSpec struct {
 	Console *LogLevelSpec `json:"console,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	//File *LogLevelSpec `json:"file,omitempty"`
+	File *LogLevelSpec `json:"file,omitempty"`
 }
 
 // LogLevelSpec

@@ -17,7 +17,7 @@ func createZooServerNetworkName(instanceName string, replicates int32, minServer
 	var zooServers string
 	for i := int32(0); i < replicates; i++ {
 		zooServers += fmt.Sprintf("%s-%d.%s.%s.svc.%s:%d:%d::%d,", instanceName, i, svcName, ns, clusterDomain,
-			zkv1alpha1.FollowerPort, zkv1alpha1.ElectionPort, i+1)
+			zkv1alpha1.FollowerPort, zkv1alpha1.ElectionPort, i+minServerId)
 	}
 	return zooServers
 }
@@ -53,6 +53,6 @@ func createStatefulSetName(instanceName string, groupName string) string {
 	return common.NewResourceNameGeneratorOneRole(instanceName, groupName).GenerateResourceName("")
 }
 
-func createDataPvcName(instanceName string, groupName string) string {
-	return common.NewResourceNameGeneratorOneRole(instanceName, groupName).GenerateResourceName("data")
+func createDataPvcName() string {
+	return "data"
 }

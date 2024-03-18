@@ -34,6 +34,15 @@ spec:
               max: "2"
             memory:
               limit: "3Gi"
+          logging:
+            zookeeperCluster:
+              loggers:
+                test:
+                  level: DEBUG
+              console:
+                level: WARN
+              file:
+                level: INFO
 
 
 
