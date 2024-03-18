@@ -1,10 +1,12 @@
 package znodecontroller
 
 import (
-	"fmt"
 	"github.com/samuel/go-zookeeper/zk"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"time"
 )
+
+var logger = ctrl.Log.WithName("zk-client")
 
 type ZkClientRepository interface {
 	// Create a znode with the given path and data
@@ -40,7 +42,7 @@ func NewZkClient(address string) *ZkClient {
 func GetConnect(zkList []string) (conn *zk.Conn) {
 	conn, _, err := zk.Connect(zkList, 10*time.Second)
 	if err != nil {
-		fmt.Println(err)
+		logger.Error(err, "failed to connect to zookeeper")
 	}
 	return
 }

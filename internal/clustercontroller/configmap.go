@@ -133,9 +133,10 @@ func (c *ConfigMapReconciler) makeServerEnvData() map[string]string {
 func (c *ConfigMapReconciler) createZooServerNetworkName() string {
 	clusterCfg := c.Instance.Spec.ClusterConfig
 	svcIngresName := createHeadlessServiceName(c.Instance.Name, c.GroupName)
+	podName := createStatefulSetName(c.Instance.Name, c.GroupName)
 	roleCfg := c.MergedCfg
 	return createZooServerNetworkName(
-		c.Instance.Name,
+		podName,
 		roleCfg.Replicas,
 		clusterCfg.MinServerId,
 		svcIngresName,

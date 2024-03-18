@@ -73,7 +73,7 @@ func (c *LogDataBuilder) MakeConsoleAppenderData(consoleLevel *zkv1alpha1.LogLev
 }
 
 // make file appender data
-const fileAppenderPropertiesTemplate = `<property name="zookeeper.log.dir" value="."/>
+const fileAppenderPropertiesTemplate = `<property name="zookeeper.log.dir" value="/opt/bitnami/zookeeper/logs"/>
   <property name="zookeeper.log.file" value="zookeeper.log"/>
   <property name="zookeeper.log.threshold" value="%s"/>
   <property name="zookeeper.log.maxfilesize" value="256MB"/>

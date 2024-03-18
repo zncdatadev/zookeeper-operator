@@ -38,7 +38,12 @@ func (c *ClusterReconciler) RegisterRole() {
 }
 
 func (c *ClusterReconciler) RegisterResource() {
-	svc := NewClusterService(c.scheme, c.cr, c.client, "", c.cr.Labels, nil)
+	label := common.RoleLabels[*stackv1alpha1.ZookeeperCluster]{
+		Cr:   c.cr,
+		Name: string(common.Server),
+	}
+	lables := label.GetLabels()
+	svc := NewClusterService(c.scheme, c.cr, c.client, "", lables, nil)
 	c.resourceReconcilers = []common.ResourceReconciler{svc}
 }
 

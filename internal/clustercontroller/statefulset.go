@@ -156,7 +156,8 @@ func (s *StatefulSetReconciler) Build(_ context.Context) (client.Object, error) 
 
 // append client connections to status of instance
 func (s *StatefulSetReconciler) appendClientConnections() {
-	connection := createClientConnectionString(s.Instance.Name, s.Replicas,
+	podName := createStatefulSetName(s.Instance.Name, s.GroupName)
+	connection := createClientConnectionString(podName, s.Replicas,
 		createHeadlessServiceName(s.Instance.Name, s.GroupName), s.Instance.Namespace,
 		s.Instance.Spec.ClusterConfig.ClusterDomain)
 	statusConnections := s.Instance.Status.ClientConnections
