@@ -18,6 +18,8 @@ package main
 
 import (
 	"flag"
+	"github.com/zncdata-labs/zookeeper-operator/internal/clustercontroller"
+	"github.com/zncdata-labs/zookeeper-operator/internal/znodecontroller"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -33,7 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	zookeeperv1alpha1 "github.com/zncdata-labs/zookeeper-operator/api/v1alpha1"
-	"github.com/zncdata-labs/zookeeper-operator/internal/controller"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -89,16 +90,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controller.ZookeeperClusterReconciler{
+	if err = (&clustercontroller.ZookeeperClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Log:    setupLog,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ZookeeperCluster")
 		os.Exit(1)
 	}
-	if err = (&controller.ZookeeperZnodeReconciler{
+	if err = (&znodecontroller.ZookeeperZnodeReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Log:    setupLog,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ZookeeperZnode")
 		os.Exit(1)

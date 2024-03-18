@@ -14,23 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package znodecontroller
 
 import (
 	"context"
+	"github.com/go-logr/logr"
+	"k8s.io/client-go/util/retry"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	zookeeperv1alpha1 "github.com/zncdata-labs/zookeeper-operator/api/v1alpha1"
+	zkv1alpha1 "github.com/zncdata-labs/zookeeper-operator/api/v1alpha1"
 )
 
 // ZookeeperZnodeReconciler reconciles a ZookeeperZnode object
 type ZookeeperZnodeReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Log    logr.Logger
 }
 
 //+kubebuilder:rbac:groups=zookeeper.zncdata.dev,resources=zookeeperznodes,verbs=get;list;watch;create;update;patch;delete
@@ -47,16 +49,50 @@ type ZookeeperZnodeReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
 func (r *ZookeeperZnodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	r.Log.Info("Reconciling zookeeper znode instance")
 
-	// TODO(user): your logic here
+	znode := &zkv1alpha1.ZookeeperZnode{}
 
+	if err := r.Get(ctx, req.NamespacedName, znode); err != nil {
+		if client.IgnoreNotFound(err) != nil {
+			r.Log.Error(err, "unable to fetch ZookeeperZNode")
+			return ctrl.Result{}, err
+		}
+		r.Log.Info("Zookeeper-zNode resource not found. Ignoring since object must be deleted")
+		return ctrl.Result{}, nil
+	}
+
+	r.Log.Info("zookeeper-znode resource found", "Name", znode.Name)
+	// reconcile order by "cluster -> role -> role-group -> resource"
+	err := NewZNodeReconciler(r.Scheme, znode, r.Client).reconcile(ctx)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	r.Log.Info("Successfully reconciled ZookeeperZNode")
 	return ctrl.Result{}, nil
+}
+
+// UpdateStatus updates the status of the ZookeeperCluster resource
+// https://stackoverflow.com/questions/76388004/k8s-controller-update-status-and-condition
+func (r *ZookeeperZnodeReconciler) UpdateStatus(ctx context.Context, instance *zkv1alpha1.ZookeeperCluster) error {
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		return r.Status().Update(ctx, instance)
+		//return r.Status().Patch(ctx, instance, client.MergeFrom(instance))
+	})
+
+	if retryErr != nil {
+		r.Log.Error(retryErr, "Failed to update vfm status after retries")
+		return retryErr
+	}
+
+	r.Log.V(1).Info("Successfully patched object status")
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ZookeeperZnodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&zookeeperv1alpha1.ZookeeperZnode{}).
+		For(&zkv1alpha1.ZookeeperZnode{}).
 		Complete(r)
 }

@@ -9,4 +9,31 @@ metadata:
     app.kubernetes.io/created-by: zookeeper-operator
   name: zookeepercluster-sample
 spec:
-  # TODO(user): Add fields here
+  image:
+    repository: docker.io/bitnami/zookeeper
+    tag: 3.9.1-debian-12-r15
+  clusterConfig:
+    service:
+      type: NodePort
+      port: 2181
+  server:
+    config:
+      resources:
+        cpu:
+          min: "1"
+          max: "2"
+        memory:
+          limit: "2Gi"
+    roleGroups:
+      default:
+        replicas: 3
+        config:
+          resources:
+            cpu:
+              min: "1"
+              max: "2"
+            memory:
+              limit: "3Gi"
+
+
+
