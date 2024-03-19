@@ -104,14 +104,15 @@ func (m *RoleGroup) RegisterResource() {
 	lables := m.MergeLabels(cfg)
 	mergedCfg := cfg.(*zkv1alpha1.RoleGroupSpec)
 	pdbSpec := mergedCfg.Config.PodDisruptionBudget
+	logDataBuilder := &LogDataBuilder{cfg: mergedCfg}
 
 	pdb := common.NewReconcilePDB(m.Client, m.Scheme, m.Instance, lables, m.GroupName, pdbSpec)
 	cm := NewConfigMap(m.Scheme, m.Instance, m.Client, m.GroupName, lables, mergedCfg)
-	//log := NewServerLogging(m.Scheme, m.Instance, m.Client, m.GroupName, lables, mergedCfg, logDataBuilder, common.Coordinator)
+	log := NewServerLogging(m.Scheme, m.Instance, m.Client, m.GroupName, lables, mergedCfg, logDataBuilder, common.Server)
 	sa := NewServiceAccount(m.Scheme, m.Instance, m.Client, m.GroupName, lables, mergedCfg)
 	statefulSet := NewStatefulSet(m.Scheme, m.Instance, m.Client, m.GroupName, lables, mergedCfg, mergedCfg.Replicas)
 	svc := NewServiceHeadless(m.Scheme, m.Instance, m.Client, m.GroupName, lables, mergedCfg)
-	m.Reconcilers = []common.ResourceReconciler{sa, cm, pdb, statefulSet, svc}
+	m.Reconcilers = []common.ResourceReconciler{sa, cm, log, pdb, statefulSet, svc}
 }
 
 func (m *RoleGroup) MergeGroupConfigSpec() any {

@@ -102,14 +102,8 @@ type ClusterConfigSpec struct {
 	ClusterDomain string `json:"clusterDomain,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default:=0
+	// +kubebuilder:default:=1
 	MinServerId int32 `json:"minServerId,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	ExtraEnv map[string]string `json:"extraEnv,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	ExtraSecret map[string]string `json:"extraSecret,omitempty"`
 }
 
 type ServerSpec struct {
@@ -180,6 +174,12 @@ type ConfigSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default="8Gi"
 	StorageSize string `json:"storageSize,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	ExtraEnv map[string]string `json:"extraEnv,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	ExtraSecret map[string]string `json:"extraSecret,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	Logging *ContainerLoggingSpec `json:"logging,omitempty"`

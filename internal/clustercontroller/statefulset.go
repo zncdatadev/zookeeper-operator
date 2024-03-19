@@ -112,7 +112,7 @@ func (s *StatefulSetReconciler) logVolumeMountsOverride(resource client.Object) 
 	for i := range containers {
 		containers[i].VolumeMounts = append(containers[i].VolumeMounts, corev1.VolumeMount{
 			Name:      s.logVolumeName(),
-			MountPath: "/opt/bitnami/zookeeper/conf" + zkv1alpha1.LogbackFileName,
+			MountPath: "/opt/bitnami/zookeeper/conf/" + zkv1alpha1.LogbackFileName,
 			SubPath:   zkv1alpha1.LogbackFileName,
 		})
 	}
@@ -156,7 +156,8 @@ func (s *StatefulSetReconciler) Build(_ context.Context) (client.Object, error) 
 
 // append client connections to status of instance
 func (s *StatefulSetReconciler) appendClientConnections() {
-	connection := createClientConnectionString(s.Instance.Name, s.Replicas,
+	podName := createStatefulSetName(s.Instance.Name, s.GroupName)
+	connection := createClientConnectionString(podName, s.Replicas,
 		createHeadlessServiceName(s.Instance.Name, s.GroupName), s.Instance.Namespace,
 		s.Instance.Spec.ClusterConfig.ClusterDomain)
 	statusConnections := s.Instance.Status.ClientConnections
@@ -164,6 +165,7 @@ func (s *StatefulSetReconciler) appendClientConnections() {
 		statusConnections = make(map[string]string)
 	}
 	statusConnections[s.GroupName] = connection
+	s.Instance.Status.ClientConnections = statusConnections
 }
 
 // create zookeeper container
@@ -256,7 +258,7 @@ func (s *StatefulSetReconciler) createVolumesMounts() []corev1.VolumeMount {
 		},
 		{
 			MountPath: "/bitnami/zookeeper",
-			Name:      createDataPvcName(s.Instance.GetName(), s.GroupName),
+			Name:      createDataPvcName(),
 		},
 	}
 }
@@ -335,16 +337,17 @@ func (s *StatefulSetReconciler) createReadinessProbe() *corev1.Probe {
 
 // create pvc template
 func (s *StatefulSetReconciler) createPvcTemplates() []corev1.PersistentVolumeClaim {
+	mode := corev1.PersistentVolumeFilesystem
 	return []corev1.PersistentVolumeClaim{{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      createDataPvcName(s.Instance.GetName(), s.GroupName),
+			Name:      createDataPvcName(),
 			Namespace: s.Instance.Namespace,
-			Labels:    s.MergedLabels,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{
 				corev1.ReadWriteOnce,
 			},
+			VolumeMode: &mode,
 			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceStorage: resource.MustParse(s.MergedCfg.Config.StorageSize),

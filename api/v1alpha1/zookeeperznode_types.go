@@ -42,7 +42,7 @@ type ZookeeperZnodeList struct {
 
 type ZookeeperZnodeSpec struct {
 	// +kubebuilder:validation:Required
-	ClusterRef ClusterRefSpec `json:"clusterRef"`
+	ClusterRef *ClusterRefSpec `json:"clusterRef"`
 }
 
 type ClusterRefSpec struct {

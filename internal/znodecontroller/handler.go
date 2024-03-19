@@ -52,17 +52,20 @@ func (z *ZNodeReconciler) reconcile(ctx context.Context) error {
 // get cluster instance
 func (z *ZNodeReconciler) getClusterInstance(ctx context.Context) (*zkv1alpha1.ZookeeperCluster, error) {
 	clusterRef := z.instance.Spec.ClusterRef
+	if clusterRef == nil {
+		return nil, fmt.Errorf("clusterRef is nil")
+	}
+	var namespace string
+	if ns := clusterRef.Namespace; ns == "" {
+		namespace = metav1.NamespaceDefault
+	}
 	clusterInstance := &zkv1alpha1.ZookeeperCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      clusterRef.Name,
-			Namespace: clusterRef.Namespace,
+			Namespace: namespace,
 		},
 	}
-	resourceClient := common.ResourceClient{
-		Ctx:       ctx,
-		Client:    z.client,
-		Namespace: clusterRef.Namespace,
-	}
+	resourceClient := common.NewResourceClient(ctx, z.client, clusterRef.Namespace)
 	err := resourceClient.Get(clusterInstance)
 	if err != nil {
 		return nil, err

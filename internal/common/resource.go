@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -14,6 +15,18 @@ type ResourceClient struct {
 	Ctx       context.Context
 	Client    client.Client
 	Namespace string
+}
+
+// NewResourceClient new resource client
+func NewResourceClient(ctx context.Context, client client.Client, namespace string) *ResourceClient {
+	if namespace == "" {
+		namespace = metav1.NamespaceDefault
+	}
+	return &ResourceClient{
+		Ctx:       ctx,
+		Client:    client,
+		Namespace: namespace,
+	}
 }
 
 func (r *ResourceClient) Get(obj client.Object) error {
