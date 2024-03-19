@@ -28,12 +28,12 @@ func createZooServerNetworkName(instanceName string, replicates int32, minServer
 // create client connection string
 func createClientConnectionString(instanceName string, replicates int32, svcName string, ns string,
 	clusterDomain string) string {
-	var clientConnectionString string
+	var clientCollections []string
 	for i := int32(0); i < replicates; i++ {
-		clientConnectionString += fmt.Sprintf("%s-%d.%s.%s.svc.%s:%d,", instanceName, i, svcName, ns,
-			clusterDomain, zkv1alpha1.ServiceClientPort)
+		clientCollections = append(clientCollections, fmt.Sprintf("%s-%d.%s.%s.svc.%s:%d", instanceName, i, svcName, ns,
+			clusterDomain, zkv1alpha1.ServiceClientPort))
 	}
-	return clientConnectionString
+	return strings.Join(clientCollections, ",")
 }
 
 func createHeadlessServiceName(instanceName string, groupName string) string {

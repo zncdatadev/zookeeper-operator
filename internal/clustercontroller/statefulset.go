@@ -165,6 +165,7 @@ func (s *StatefulSetReconciler) appendClientConnections() {
 		statusConnections = make(map[string]string)
 	}
 	statusConnections[s.GroupName] = connection
+	s.Instance.Status.ClientConnections = statusConnections
 }
 
 // create zookeeper container
