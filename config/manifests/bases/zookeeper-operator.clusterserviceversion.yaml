@@ -15,6 +15,11 @@ spec:
       kind: ZookeeperCluster
       name: zookeeperclusters.zookeeper.zncdata.dev
       version: v1alpha1
+    - description: ZookeeperZnode is the Schema for the zookeeperznodes API
+      displayName: Zookeeper Znode
+      kind: ZookeeperZnode
+      name: zookeeperznodes.zookeeper.zncdata.dev
+      version: v1alpha1
   description: zookeeper operator
   displayName: \zookeeper-operator
   icon:
@@ -25,9 +30,9 @@ spec:
       deployments: null
     strategy: ""
   installModes:
-  - supported: false
+  - supported: true
     type: OwnNamespace
-  - supported: false
+  - supported: true
     type: SingleNamespace
   - supported: false
     type: MultiNamespace
