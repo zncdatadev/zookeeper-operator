@@ -5,6 +5,7 @@ import (
 	"fmt"
 	zkv1alpha1 "github.com/zncdata-labs/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdata-labs/zookeeper-operator/internal/common"
+	"github.com/zncdata-labs/zookeeper-operator/internal/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -81,7 +82,9 @@ func (z *ZNodeReconciler) createZnodePath() string {
 
 // create zookeeper znode
 func (z *ZNodeReconciler) createZookeeperZnode(path string, cluster *zkv1alpha1.ZookeeperCluster) error {
-	zkCli := NewZkClient(z.getClusterSvcUrl(cluster))
+	svcDns := z.getClusterSvcUrl(cluster)
+	logger.Info("💡zookeeper cluster service client dns url", "dns", svcDns)
+	zkCli := NewZkClient(svcDns)
 	defer zkCli.Close()
 	err := zkCli.Create(path, []byte{})
 	if err != nil {
@@ -92,7 +95,7 @@ func (z *ZNodeReconciler) createZookeeperZnode(path string, cluster *zkv1alpha1.
 
 // get custer service url
 func (z *ZNodeReconciler) getClusterSvcUrl(cluster *zkv1alpha1.ZookeeperCluster) string {
-	svc := cluster.Spec.ClusterConfig.Service
 	svcHost := common.CreateClusterServiceName(cluster.Name)
-	return fmt.Sprintf("%s:%d", svcHost, svc.Port)
+	dns := util.CreateDnsAccess(svcHost, cluster.Namespace, cluster.Spec.ClusterConfig.ClusterDomain)
+	return fmt.Sprintf("%s:%d", dns, zkv1alpha1.ClientPort)
 }

@@ -50,7 +50,7 @@ spec:
                           type: string
                         type: object
                       port:
-                        default: 18080
+                        default: 2181
                         format: int32
                         maximum: 65535
                         minimum: 1
