@@ -55,6 +55,7 @@ func (z ZkClient) Create(path string, data []byte) error {
 	if err != nil {
 		return err
 	}
+	logger.Info("created zookeeper znode success", "path", path)
 	return nil
 }
 
