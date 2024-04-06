@@ -2,8 +2,6 @@ module github.com/zncdata-labs/zookeeper-operator
 
 go 1.21
 
-toolchain go1.21.7
-
 require (
 	github.com/cisco-open/k8s-objectmatcher v1.9.0
 	github.com/go-logr/logr v1.4.1
