@@ -2,9 +2,11 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource
 metadata:
   name: zookeeper-catalog
-  # namespace: olm
+  namespace: olm
 spec:
   sourceType: grpc
+  grpcPodConfig:
+    securityContextConfig: restricted
   image: registry.cn-hangzhou.aliyuncs.com/luwei-dev/zookeeper-operator-catalog:latest
   displayName: zookeeper-catalog
   publisher: zncdata-labs
