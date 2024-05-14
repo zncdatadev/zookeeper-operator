@@ -84,9 +84,12 @@ func (z *ZNodeReconciler) createZnodePath() string {
 func (z *ZNodeReconciler) createZookeeperZnode(path string, cluster *zkv1alpha1.ZookeeperCluster) error {
 	svcDns := z.getClusterSvcUrl(cluster)
 	logger.Info("zookeeper cluster service client dns url", "dns", svcDns)
-	zkCli := NewZkClient(svcDns)
+	zkCli, err := NewZkClient(svcDns)
+	if err != nil {
+		return err
+	}
 	defer zkCli.Close()
-	err := zkCli.Create(path, []byte{})
+	err = zkCli.Create(path, []byte{})
 	if err != nil {
 		return err
 	}
