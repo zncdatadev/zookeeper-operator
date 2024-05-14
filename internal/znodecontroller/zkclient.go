@@ -31,20 +31,24 @@ type ZkClient struct {
 }
 
 // NewZkClient new zk client
-func NewZkClient(address string) *ZkClient {
-	conn := GetConnect([]string{address})
+func NewZkClient(address string) (*ZkClient, error) {
+	conn, err := GetConnect([]string{address})
+	if err != nil {
+		return nil, err
+	}
 	return &ZkClient{
 		Address: address,
 		Client:  conn,
-	}
+	}, nil
 }
 
-func GetConnect(zkList []string) (conn *zk.Conn) {
-	conn, _, err := zk.Connect(zkList, 10*time.Second)
+func GetConnect(zkList []string) (conn *zk.Conn, err error) {
+	conn, _, err = zk.Connect(zkList, 10*time.Second)
 	if err != nil {
 		logger.Error(err, "failed to connect to zookeeper")
+		return nil, err
 	}
-	return
+	return conn, nil
 }
 
 func (z ZkClient) Create(path string, data []byte) error {
