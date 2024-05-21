@@ -3,9 +3,10 @@ package znodecontroller
 import (
 	"context"
 	"fmt"
-	zkv1alpha1 "github.com/zncdata-labs/zookeeper-operator/api/v1alpha1"
-	"github.com/zncdata-labs/zookeeper-operator/internal/common"
-	"github.com/zncdata-labs/zookeeper-operator/internal/util"
+
+	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
+	"github.com/zncdatadev/zookeeper-operator/internal/common"
+	"github.com/zncdatadev/zookeeper-operator/internal/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"

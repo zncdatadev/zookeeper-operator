@@ -1,7 +1,7 @@
 package common
 
 import (
-	zookeeperv1alpha1 "github.com/zncdata-labs/zookeeper-operator/api/v1alpha1"
+	zookeeperv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )

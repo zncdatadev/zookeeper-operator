@@ -2,9 +2,10 @@ package clustercontroller
 
 import (
 	"fmt"
-	zkv1alpha1 "github.com/zncdata-labs/zookeeper-operator/api/v1alpha1"
-	"github.com/zncdata-labs/zookeeper-operator/internal/common"
 	"strings"
+
+	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
+	"github.com/zncdatadev/zookeeper-operator/internal/common"
 )
 
 // "ZOO_SERVERS":

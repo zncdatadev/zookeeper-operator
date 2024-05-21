@@ -19,11 +19,12 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/zncdata-labs/zookeeper-operator/internal/clustercontroller"
-	"github.com/zncdata-labs/zookeeper-operator/internal/znodecontroller"
 	"os"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"strings"
+
+	"github.com/zncdatadev/zookeeper-operator/internal/clustercontroller"
+	"github.com/zncdatadev/zookeeper-operator/internal/znodecontroller"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -37,7 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	zookeeperv1alpha1 "github.com/zncdata-labs/zookeeper-operator/api/v1alpha1"
+	zookeeperv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 

@@ -3,7 +3,7 @@ package common
 import (
 	"context"
 
-	zookeeperv1alpha1 "github.com/zncdata-labs/zookeeper-operator/api/v1alpha1"
+	zookeeperv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	policyv1 "k8s.io/api/policy/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
