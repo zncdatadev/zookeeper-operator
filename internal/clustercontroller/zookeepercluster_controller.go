@@ -18,6 +18,7 @@ package clustercontroller
 
 import (
 	"context"
+
 	"github.com/go-logr/logr"
 	"k8s.io/client-go/util/retry"
 
@@ -25,7 +26,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	zkv1alpha1 "github.com/zncdata-labs/zookeeper-operator/api/v1alpha1"
+	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 )
 
 // ZookeeperClusterReconciler reconciles a ZookeeperCluster object

@@ -2,8 +2,9 @@ package clustercontroller
 
 import (
 	"fmt"
-	zkv1alpha1 "github.com/zncdata-labs/zookeeper-operator/api/v1alpha1"
-	"github.com/zncdata-labs/zookeeper-operator/internal/common"
+
+	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
+	"github.com/zncdatadev/zookeeper-operator/internal/common"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )

@@ -9,7 +9,7 @@ plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
 projectName: zookeeper-operator
-repo: github.com/zncdata-labs/zookeeper-operator
+repo: github.com/zncdatadev/zookeeper-operator
 resources:
 - api:
     crdVersion: v1
@@ -18,7 +18,7 @@ resources:
   domain: zncdata.dev
   group: zookeeper
   kind: ZookeeperCluster
-  path: github.com/zncdata-labs/zookeeper-operator/api/v1alpha1
+  path: github.com/zncdatadev/zookeeper-operator/api/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
@@ -27,6 +27,6 @@ resources:
   domain: zncdata.dev
   group: zookeeper
   kind: ZookeeperZnode
-  path: github.com/zncdata-labs/zookeeper-operator/api/v1alpha1
+  path: github.com/zncdatadev/zookeeper-operator/api/v1alpha1
   version: v1alpha1
 version: "3"
