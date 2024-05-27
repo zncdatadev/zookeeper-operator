@@ -108,4 +108,4 @@ entries:
   - name: zookeeper-operator.v0.0.1
 ---
 schema: olm.bundle
-image: registry.cn-hangzhou.aliyuncs.com/luwei-dev/zookeeper-operator-bundle:v0.0.1
+image: quay.io/zncdatadev/zookeeper-operator-bundle:v0.0.1

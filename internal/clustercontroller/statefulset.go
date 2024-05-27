@@ -17,6 +17,15 @@ type StatefulSetReconciler struct {
 	common.WorkloadStyleReconciler[*zkv1alpha1.ZookeeperCluster, *zkv1alpha1.RoleGroupSpec]
 }
 
+func (s *StatefulSetReconciler) SetAffinity(resource client.Object) {
+	ss := resource.(*appsv1.Deployment)
+	if affinity := s.MergedCfg.Config.Affinity; affinity != nil {
+		ss.Spec.Template.Spec.Affinity = affinity
+	} else {
+		ss.Spec.Template.Spec.Affinity = common.AffinityDefault(common.Server, s.Instance.GetName())
+	}
+}
+
 // NewStatefulSet new a StatefulSetReconciler
 func NewStatefulSet(
 	scheme *runtime.Scheme,
