@@ -58,6 +58,10 @@ type ConditionsGetter interface {
 	GetConditions() *[]metav1.Condition
 }
 
+type AffinitySetter interface {
+	SetAffinity(resource client.Object)
+}
+
 type WorkloadOverride interface {
 	CommandOverride(resource client.Object)
 	EnvOverride(resource client.Object)
@@ -268,6 +272,9 @@ func (s *WorkloadStyleReconciler[T, G]) DoReconcile(
 	// check if the resource is satisfied
 	// if not, return requeue
 	// if satisfied, return nil
+	if setAffinity, ok := instance.(AffinitySetter); ok {
+		setAffinity.SetAffinity(resource)
+	}
 	if override, ok := instance.(WorkloadOverride); ok {
 		override.CommandOverride(resource)
 		override.EnvOverride(resource)
