@@ -18,7 +18,7 @@ type StatefulSetReconciler struct {
 }
 
 func (s *StatefulSetReconciler) SetAffinity(resource client.Object) {
-	ss := resource.(*appsv1.Deployment)
+	ss := resource.(*appsv1.StatefulSet)
 	if affinity := s.MergedCfg.Config.Affinity; affinity != nil {
 		ss.Spec.Template.Spec.Affinity = affinity
 	} else {
