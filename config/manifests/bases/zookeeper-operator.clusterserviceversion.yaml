@@ -21,7 +21,7 @@ spec:
       name: zookeeperznodes.zookeeper.zncdata.dev
       version: v1alpha1
   description: zookeeper operator
-  displayName: \zookeeper-operator
+  displayName: zookeeper-operator
   icon:
   - base64data: ""
     mediatype: ""
