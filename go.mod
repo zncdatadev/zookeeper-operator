@@ -1,14 +1,13 @@
 module github.com/zncdatadev/zookeeper-operator
 
 go 1.22.0
-
 toolchain go1.22.4
 
 require (
 	github.com/cisco-open/k8s-objectmatcher v1.9.0
 	github.com/go-logr/logr v1.4.2
 	github.com/samuel/go-zookeeper v0.0.0-20201211165307-7117e9ea2414
-	github.com/zncdatadev/operator-go v0.5.0
+	github.com/zncdatadev/operator-go v0.5.1
 	k8s.io/api v0.30.1
 	k8s.io/apimachinery v0.30.1
 	k8s.io/client-go v0.30.1
