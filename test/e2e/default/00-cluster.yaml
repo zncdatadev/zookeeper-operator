@@ -18,23 +18,10 @@ spec:
       type: NodePort
       port: 2181
   server:
-    config:
-      resources:
-        cpu:
-          min: "1"
-          max: "2"
-        memory:
-          limit: "2Gi"
     roleGroups:
       default:
-        replicas: 2
+        replicas: 3
         config:
-          resources:
-            cpu:
-              min: "1"
-              max: "2"
-            memory:
-              limit: "3Gi"
           logging:
             zookeeperCluster:
               loggers:
