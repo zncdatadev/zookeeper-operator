@@ -4,6 +4,6 @@ metadata:
   name: zookeepercluster-sample-default
   namespace: kubedatastack
 status:
-  availableReplicas: 2
-  replicas: 2
+  availableReplicas: 3
+  replicas: 3
 

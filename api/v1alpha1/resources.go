@@ -5,9 +5,9 @@ import (
 )
 
 const (
-	CpuMin      = "1"
-	CpuMax      = "1.5"
-	MemoryLimit = "1.5Gi"
+	CpuMin      = "100m"
+	CpuMax      = "300m"
+	MemoryLimit = "500Mi"
 )
 
 type ResourcesSpec struct {
