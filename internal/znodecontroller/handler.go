@@ -3,6 +3,7 @@ package znodecontroller
 import (
 	"context"
 	"fmt"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/common"
@@ -32,23 +33,29 @@ func NewZNodeReconciler(
 }
 
 // reconcile
-func (z *ZNodeReconciler) reconcile(ctx context.Context) error {
+func (z *ZNodeReconciler) reconcile(ctx context.Context) (ctrl.Result, error) {
 	cluster, err := z.getClusterInstance(ctx)
 	if err != nil {
-		return err
+		return ctrl.Result{}, err
 	}
 	// 1. create znode
 	znodePath := z.createZnodePath()
 	if err = z.createZookeeperZnode(znodePath, cluster); err != nil {
-		return err
+		return ctrl.Result{}, err
 	}
 	// 2. reconcile config map
 	cm := NewConfigmap(z.scheme, z.instance, z.client, "", z.instance.Labels, nil, znodePath, cluster)
-	_, err = cm.ReconcileResource(ctx, common.NewSingleResourceBuilder(cm))
+
+	var res ctrl.Result
+	res, err = cm.ReconcileResource(ctx, common.NewSingleResourceBuilder(cm))
 	if err != nil {
-		return err
+		return ctrl.Result{}, err
 	}
-	return nil
+
+	if res.RequeueAfter > 0 {
+		return res, nil
+	}
+	return ctrl.Result{}, nil
 }
 
 // get cluster instance

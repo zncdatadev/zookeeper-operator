@@ -20,8 +20,6 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
-	"k8s.io/client-go/util/retry"
-
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -68,30 +66,15 @@ func (r *ZookeeperZnodeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	r.Log.Info("zookeeper-znode resource found", "Name", znode.Name)
 	// reconcile order by "cluster -> role -> role-group -> resource"
-	err := NewZNodeReconciler(r.Scheme, znode, r.Client).reconcile(ctx)
+	result, err := NewZNodeReconciler(r.Scheme, znode, r.Client).reconcile(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
+	} else if result.RequeueAfter > 0 {
+		return result, nil
 	}
-
-	r.Log.Info("Successfully reconciled ZookeeperZNode")
+	r.Log.Info("Reconcile successfully ", "Name", znode.Name)
 	return ctrl.Result{}, nil
-}
 
-// UpdateStatus updates the status of the ZookeeperCluster resource
-// https://stackoverflow.com/questions/76388004/k8s-controller-update-status-and-condition
-func (r *ZookeeperZnodeReconciler) UpdateStatus(ctx context.Context, instance *zkv1alpha1.ZookeeperCluster) error {
-	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		return r.Status().Update(ctx, instance)
-		//return r.Status().Patch(ctx, instance, client.MergeFrom(instance))
-	})
-
-	if retryErr != nil {
-		r.Log.Error(retryErr, "Failed to update vfm status after retries")
-		return retryErr
-	}
-
-	r.Log.V(1).Info("Successfully patched object status")
-	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
