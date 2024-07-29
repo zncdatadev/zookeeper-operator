@@ -11,4 +11,3 @@ metadata:
 spec:
   clusterRef:
     name: zookeepercluster-sample
-    namespace: kubedatastack

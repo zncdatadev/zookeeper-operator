@@ -8,7 +8,6 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: zookeeper-operator
   name: zookeepercluster-sample
-  namespace: kubedatastack
 spec:
   image:
     repository: docker.io/bitnami/zookeeper
