@@ -41,6 +41,13 @@ const (
 	ServiceElectionPort = 3888
 )
 
+type ListenerClass string
+
+const (
+	ClusterInternal  ListenerClass = "ClusterIP"
+	ExternalUnstable ListenerClass = "NodePort"
+)
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
@@ -94,8 +101,10 @@ type ImageSpec struct {
 }
 
 type ClusterConfigSpec struct {
-	// +kubebuilder:validation:Optional
-	Service *ServiceSpec `json:"service,omitempty"`
+	// +kubebuilder:validation:required
+	// +kubebuilder:validation:Enum=ClusterIP;NodePort
+	// +kubebuilder:default="ClusterIP"
+	ListenerClass string `json:"listenerClass"`
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default:="cluster.local"

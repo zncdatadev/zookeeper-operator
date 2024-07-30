@@ -128,7 +128,7 @@ func (z *ZNodeReconciler) createZookeeperZnode(path string, cluster *zkv1alpha1.
 
 // get custer service url
 func (z *ZNodeReconciler) getClusterSvcUrl(cluster *zkv1alpha1.ZookeeperCluster) string {
-	svcHost := common.CreateClusterServiceName(cluster.Name)
+	svcHost := common.ClusterServiceName(cluster.Name)
 	dns := util.CreateDnsAccess(svcHost, cluster.Namespace, cluster.Spec.ClusterConfig.ClusterDomain)
 	return fmt.Sprintf("%s:%d", dns, zkv1alpha1.ClientPort)
 }

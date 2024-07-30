@@ -59,8 +59,8 @@ func OverrideEnvVars(origin *[]corev1.EnvVar, override map[string]string) {
 	}
 }
 
-func CreateClusterServiceName(instanceName string) string {
-	return instanceName + "-cluster"
+func ClusterServiceName(instanceName string) string {
+	return instanceName
 }
 
 // CreateRoleGroupLoggingConfigMapName create role group logging config-map name
