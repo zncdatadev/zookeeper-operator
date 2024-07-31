@@ -40,29 +40,38 @@ func NewClusterService(
 
 // Build implements the ResourceBuilder interface
 func (r *ServiceReconciler) Build(_ context.Context) (client.Object, error) {
+	var serviceType corev1.ServiceType
+	listenerClass := r.Instance.Spec.ClusterConfig.ListenerClass
+	switch listenerClass {
+	case string(zkv1alpha1.ClusterInternal):
+		serviceType = corev1.ServiceTypeClusterIP
+	case string(zkv1alpha1.ExternalUnstable):
+		serviceType = corev1.ServiceTypeNodePort
+	default:
+		serviceType = corev1.ServiceTypeClusterIP
+	}
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      common.CreateClusterServiceName(r.Instance.GetName()),
+			Name:      common.ClusterServiceName(r.Instance.GetName()),
 			Namespace: r.Instance.Namespace,
 			Labels:    r.MergedLabels,
 		},
 		Spec: corev1.ServiceSpec{
-			ClusterIP: "",
-			Type:      corev1.ServiceTypeClusterIP,
-			Selector:  r.MergedLabels,
+			Type:     serviceType,
+			Selector: r.MergedLabels,
 			Ports: []corev1.ServicePort{
 				{
-					Name:       "tcp-client",
+					Name:       zkv1alpha1.ClientPortName,
 					Port:       zkv1alpha1.ServiceClientPort,
 					TargetPort: intstr.FromString(zkv1alpha1.ClientPortName),
 				},
 				{
-					Name:       "tcp-follower",
+					Name:       zkv1alpha1.FollowerPortName,
 					Port:       zkv1alpha1.ServiceFollowerPort,
 					TargetPort: intstr.FromString(zkv1alpha1.FollowerPortName),
 				},
 				{
-					Name:       "tcp-election",
+					Name:       zkv1alpha1.ElectionPortName,
 					Port:       zkv1alpha1.ServiceElectionPort,
 					TargetPort: intstr.FromString(zkv1alpha1.ElectionPortName),
 				},

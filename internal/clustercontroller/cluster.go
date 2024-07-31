@@ -68,5 +68,15 @@ func (c *ClusterReconciler) ReconcileCluster(ctx context.Context) (ctrl.Result, 
 			return res, nil
 		}
 	}
+
+	zkDiscovery := common.NewZookeeperDiscovery(c.scheme, c.cr, c.client, nil)
+	res, err := zkDiscovery.ReconcileResource(ctx, common.NewMultiResourceBuilder(zkDiscovery))
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if res.RequeueAfter > 0 {
+		return res, nil
+	}
+
 	return ctrl.Result{}, nil
 }

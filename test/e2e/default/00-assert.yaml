@@ -3,6 +3,16 @@ kind: StatefulSet
 metadata:
   name: zookeepercluster-sample-default
 status:
-  availableReplicas: 3
   replicas: 3
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zookeepercluster-sample
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zookeepercluster-sample-nodeport
+
 

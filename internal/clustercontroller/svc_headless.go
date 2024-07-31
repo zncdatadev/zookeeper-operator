@@ -51,17 +51,17 @@ func (r *ServiceHeadlessReconciler) Build(_ context.Context) (client.Object, err
 			Selector:  r.MergedLabels,
 			Ports: []corev1.ServicePort{
 				{
-					Name:       "tcp-client",
+					Name:       zkv1alpha1.ClientPortName,
 					Port:       zkv1alpha1.ServiceClientPort,
 					TargetPort: intstr.FromString(zkv1alpha1.ClientPortName),
 				},
 				{
-					Name:       "tcp-follower",
+					Name:       zkv1alpha1.FollowerPortName,
 					Port:       zkv1alpha1.ServiceFollowerPort,
 					TargetPort: intstr.FromString(zkv1alpha1.FollowerPortName),
 				},
 				{
-					Name:       "tcp-election",
+					Name:       zkv1alpha1.ElectionPortName,
 					Port:       zkv1alpha1.ServiceElectionPort,
 					TargetPort: intstr.FromString(zkv1alpha1.ElectionPortName),
 				},
