@@ -72,6 +72,13 @@ type ConfigurationOverride interface {
 	ConfigurationOverride(resource client.Object)
 }
 
+type ResourceScope string
+
+const (
+	ScopeNameSpace ResourceScope = "namespace"
+	ScopeCluster   ResourceScope = "cluster"
+)
+
 type BaseResourceReconciler[T client.Object, G any] struct {
 	Instance  T
 	Scheme    *runtime.Scheme
@@ -80,6 +87,8 @@ type BaseResourceReconciler[T client.Object, G any] struct {
 
 	MergedLabels map[string]string
 	MergedCfg    G
+	owner        metav1.Object
+	scope        *ResourceScope
 }
 
 // NewBaseResourceReconciler new a BaseResourceReconciler
@@ -98,6 +107,19 @@ func NewBaseResourceReconciler[T client.Object, G any](
 		MergedLabels: mergedLabels,
 		MergedCfg:    mergedCfg,
 	}
+}
+
+// SetOwner set owner
+func (b *BaseResourceReconciler[T, G]) SetOwner(owner metav1.Object) *BaseResourceReconciler[T, G] {
+	b.owner = owner
+	return b
+}
+
+// SetScope set Scope
+// cluster scoped should not set namespace, and also not set owner
+func (b *BaseResourceReconciler[T, G]) SetScope(scope *ResourceScope) *BaseResourceReconciler[T, G] {
+	b.scope = scope
+	return b
 }
 
 func (b *BaseResourceReconciler[T, G]) ReconcileResource(
@@ -127,9 +149,18 @@ func (b *BaseResourceReconciler[T, G]) Apply(
 	if dep == nil {
 		return ctrl.Result{}, nil
 	}
-	if err := ctrl.SetControllerReference(b.Instance, dep, b.Scheme); err != nil {
-		return ctrl.Result{}, err
+	if b.scope != nil && *b.scope == ScopeCluster {
+		// cluster scope need not set owner reference
+		// cluster scoped should not set namespace, and also not set owner
+	} else {
+		if b.owner == nil {
+			b.owner = b.Instance
+		}
+		if err := ctrl.SetControllerReference(b.owner, dep, b.Scheme); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
+
 	mutant, err := util.CreateOrUpdate(ctx, b.Client, dep)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -431,7 +462,6 @@ func NewGeneralConfigMap[T client.Object, G any](
 	mergedCfg G,
 	resourceBuilderFunc func() (client.Object, error),
 	configurationOverrideFunc func() error,
-
 ) *GeneralConfigMapReconciler[T, G] {
 	return &GeneralConfigMapReconciler[T, G]{
 		GeneralResourceStyleReconciler: *NewGeneraResourceStyleReconciler[T, G](

@@ -14,6 +14,7 @@ import (
 
 type DiscoveryReconciler struct {
 	ctx    context.Context
+	owner  client.Object
 	chroot *string
 	MultiConfigurationStyleReconciler[*zkv1alpha1.ZookeeperCluster, *zkv1alpha1.RoleGroupSpec]
 }
@@ -21,21 +22,23 @@ type DiscoveryReconciler struct {
 // NewZookeeperDiscovery new a DiscoveryReconciler
 func NewZookeeperDiscovery(
 	scheme *runtime.Scheme,
-	instance *zkv1alpha1.ZookeeperCluster,
+	zkCluster *zkv1alpha1.ZookeeperCluster,
 	client client.Client,
+	owner client.Object, // may be zkCluster or zk znode
 	chroot *string,
 ) *DiscoveryReconciler {
 	var cfg *zkv1alpha1.RoleGroupSpec
 	return &DiscoveryReconciler{
 		MultiConfigurationStyleReconciler: *NewMultiConfigurationStyleReconciler(
 			scheme,
-			instance,
+			zkCluster,
 			client,
 			"",
-			instance.Labels,
+			zkCluster.Labels,
 			cfg,
 		),
 		chroot: chroot,
+		owner:  owner,
 	}
 }
 
@@ -53,7 +56,7 @@ func (c *DiscoveryReconciler) Build(ctx context.Context) ([]ResourceBuilder, err
 
 // create pod host discovery
 func (c *DiscoveryReconciler) createPodHostDiscovery() ResourceBuilder {
-	return NewGeneralConfigMap(
+	cm := NewGeneralConfigMap(
 		c.Scheme,
 		c.Instance,
 		c.Client,
@@ -61,11 +64,13 @@ func (c *DiscoveryReconciler) createPodHostDiscovery() ResourceBuilder {
 		c.MergedLabels,
 		c.MergedCfg,
 		c.createPodHostDiscoveryConfigMap, nil)
+	cm.SetOwner(c.owner)
+	return cm
 }
 
 // crate node port discovery
 func (c *DiscoveryReconciler) createNodePortDiscovery() ResourceBuilder {
-	return NewGeneralConfigMap(
+	cm := NewGeneralConfigMap(
 		c.Scheme,
 		c.Instance,
 		c.Client,
@@ -73,11 +78,13 @@ func (c *DiscoveryReconciler) createNodePortDiscovery() ResourceBuilder {
 		c.MergedLabels,
 		c.MergedCfg,
 		c.createNodePortDiscoveryConfigMap, nil)
+	cm.SetOwner(c.owner)
+	return cm
 }
 
 func (c *DiscoveryReconciler) createPodHostDiscoveryConfigMap() (client.Object, error) {
 	configmapBuilder := NewConfigMapBuilder(&metav1.ObjectMeta{
-		Name:      c.Instance.GetName(),
+		Name:      c.owner.GetName(),
 		Namespace: c.Instance.GetNamespace(),
 		Labels:    c.MergedLabels,
 	})
@@ -141,7 +148,7 @@ func (c *DiscoveryReconciler) getAccessHosts(connections []string) string {
 
 func (c *DiscoveryReconciler) createNodePortDiscoveryConfigMap() (client.Object, error) {
 	configmapBuilder := NewConfigMapBuilder(&metav1.ObjectMeta{
-		Name:      c.Instance.GetName() + "-nodeport",
+		Name:      c.owner.GetName() + "-nodeport",
 		Namespace: c.Instance.GetNamespace(),
 		Labels:    c.MergedLabels,
 	})
