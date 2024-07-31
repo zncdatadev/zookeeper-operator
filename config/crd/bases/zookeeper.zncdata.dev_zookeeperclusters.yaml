@@ -45,10 +45,10 @@ spec:
                     default: cluster.local
                     type: string
                   listenerClass:
-                    default: ClusterIP
+                    default: cluster-internal
                     enum:
-                    - ClusterIP
-                    - NodePort
+                    - cluster-internal
+                    - external-unstable
                     type: string
                   minServerId:
                     default: 1

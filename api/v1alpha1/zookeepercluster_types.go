@@ -44,8 +44,8 @@ const (
 type ListenerClass string
 
 const (
-	ClusterInternal  ListenerClass = "ClusterIP"
-	ExternalUnstable ListenerClass = "NodePort"
+	ClusterInternal  ListenerClass = "cluster-internal"
+	ExternalUnstable ListenerClass = "external-unstable"
 )
 
 // +kubebuilder:object:root=true
@@ -102,8 +102,8 @@ type ImageSpec struct {
 
 type ClusterConfigSpec struct {
 	// +kubebuilder:validation:required
-	// +kubebuilder:validation:Enum=ClusterIP;NodePort
-	// +kubebuilder:default="ClusterIP"
+	// +kubebuilder:validation:Enum="cluster-internal";"external-unstable"
+	// +kubebuilder:default="cluster-internal"
 	ListenerClass string `json:"listenerClass"`
 
 	// +kubebuilder:validation:Optional
