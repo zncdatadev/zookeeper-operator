@@ -45,15 +45,13 @@ func (z *ZNodeReconciler) reconcile(ctx context.Context) (ctrl.Result, error) {
 	if err = z.createZookeeperZnode(znodePath, cluster); err != nil {
 		return ctrl.Result{}, err
 	}
-	// 2. reconcile config map
-	cm := NewConfigmap(z.scheme, z.instance, z.client, "", z.instance.Labels, nil, znodePath, cluster)
 
-	var res ctrl.Result
-	res, err = cm.ReconcileResource(ctx, common.NewSingleResourceBuilder(cm))
+	// 2. create configmap in zookeeper to display zookeeper cluster info
+	discovery := common.NewZookeeperDiscovery(z.scheme, cluster, z.client, z.instance, &znodePath)
+	res, err := discovery.ReconcileResource(ctx, common.NewMultiResourceBuilder(discovery))
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-
 	if res.RequeueAfter > 0 {
 		return res, nil
 	}
