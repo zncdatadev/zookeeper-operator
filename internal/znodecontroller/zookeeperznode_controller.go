@@ -18,6 +18,11 @@ package znodecontroller
 
 import (
 	"context"
+	"fmt"
+	"github.com/zncdatadev/zookeeper-operator/internal/common"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/finalizer"
+	"time"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -63,10 +68,19 @@ func (r *ZookeeperZnodeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		r.Log.Info("Zookeeper-zNode resource not found. Ignoring since object must be deleted")
 		return ctrl.Result{}, nil
 	}
-
 	r.Log.Info("zookeeper-znode resource found", "Name", znode.Name)
+	zkCluster, err := r.getClusterInstance(znode, ctx)
+	if err != nil {
+		return ctrl.Result{RequeueAfter: time.Millisecond * 10000}, err
+	}
 	// reconcile order by "cluster -> role -> role-group -> resource"
-	result, err := NewZNodeReconciler(r.Scheme, znode, r.Client).reconcile(ctx)
+	result, chroot, err := NewZNodeReconciler(r.Scheme, znode, r.Client).reconcile(ctx, zkCluster)
+
+	//setup finalizer
+	if err := r.setupFinalizer(znode, zkCluster, ctx, chroot); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	if err != nil {
 		return ctrl.Result{}, err
 	} else if result.RequeueAfter > 0 {
@@ -74,7 +88,49 @@ func (r *ZookeeperZnodeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	r.Log.Info("Reconcile successfully ", "Name", znode.Name)
 	return ctrl.Result{}, nil
+}
 
+// get cluster instance
+func (r *ZookeeperZnodeReconciler) getClusterInstance(znode *zkv1alpha1.ZookeeperZnode, ctx context.Context) (*zkv1alpha1.ZookeeperCluster, error) {
+	clusterRef := znode.Spec.ClusterRef
+	if clusterRef == nil {
+		return nil, fmt.Errorf("clusterRef is nil")
+	}
+	namespace := clusterRef.Namespace
+	if namespace == "" {
+		namespace = znode.Namespace
+	}
+
+	clusterInstance := &zkv1alpha1.ZookeeperCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      clusterRef.Name,
+			Namespace: namespace,
+		},
+	}
+	resourceClient := common.NewResourceClient(ctx, r.Client, namespace)
+	err := resourceClient.Get(clusterInstance)
+	if err != nil {
+		return nil, err
+	}
+	return clusterInstance, nil
+}
+
+func (r *ZookeeperZnodeReconciler) setupFinalizer(cr *zkv1alpha1.ZookeeperZnode, zkCluster *zkv1alpha1.ZookeeperCluster,
+	ctx context.Context, chroot string) error {
+	finalizers := finalizer.NewFinalizers()
+	err := finalizers.Register(ZNodeDeleteFinalizer, ZnodeDeleteFinalizer{Chroot: chroot, ZkCluster: zkCluster})
+	if err != nil {
+		return err
+	}
+	_, err = finalizers.Finalize(ctx, cr)
+	if err != nil {
+		return err
+	}
+	err = r.Update(ctx, cr)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

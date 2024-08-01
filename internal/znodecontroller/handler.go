@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/finalizer"
 
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/common"
 	"github.com/zncdatadev/zookeeper-operator/internal/util"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -35,57 +35,28 @@ func NewZNodeReconciler(
 }
 
 // reconcile
-func (z *ZNodeReconciler) reconcile(ctx context.Context) (ctrl.Result, error) {
-	cluster, err := z.getClusterInstance(ctx)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
+func (z *ZNodeReconciler) reconcile(ctx context.Context, cluster *zkv1alpha1.ZookeeperCluster) (ctrl.Result, string, error) {
 	// 1. create znode in zookeeper
 	znodePath := z.createZnodePath()
-	if err = z.createZookeeperZnode(znodePath, cluster); err != nil {
-		return ctrl.Result{}, err
+	znodeLogger.Info("create znode in zookeeper", "znode path", znodePath)
+	if err := z.createZookeeperZnode(znodePath, cluster); err != nil {
+		return ctrl.Result{}, "", err
 	}
 
 	// 2. create configmap in zookeeper to display zookeeper cluster info
+	znodeLogger.Info("create configmap for zookeeper discovery", "namaspace", z.instance.Namespace,
+		"name", z.instance.Name, "path", znodePath)
 	discovery := common.NewZookeeperDiscovery(z.scheme, cluster, z.client, z.instance, &znodePath)
 	res, err := discovery.ReconcileResource(ctx, common.NewMultiResourceBuilder(discovery))
 	if err != nil {
-		return ctrl.Result{}, err
+		znodeLogger.Error(err, "create configmap for zookeeper discovery error",
+			"namaspace", z.instance.Namespace, "discovery owner", z.instance.Name, "path", znodePath)
+		return ctrl.Result{}, "", err
 	}
 	if res.RequeueAfter > 0 {
-		return res, nil
+		return res, "", nil
 	}
-	return ctrl.Result{}, nil
-}
-
-// get cluster instance
-func (z *ZNodeReconciler) getClusterInstance(ctx context.Context) (*zkv1alpha1.ZookeeperCluster, error) {
-	clusterRef := z.instance.Spec.ClusterRef
-	if clusterRef == nil {
-		return nil, fmt.Errorf("clusterRef is nil")
-	}
-	// deprecated: when cluster reference namespace is empty, use znode cr's namespace.
-	//var namespace string =
-	//if ns := clusterRef.Namespace; ns == "" {
-	//	namespace = metav1.NamespaceDefault
-	//}
-	namespace := clusterRef.Namespace
-	if namespace == "" {
-		namespace = z.instance.Namespace
-	}
-
-	clusterInstance := &zkv1alpha1.ZookeeperCluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      clusterRef.Name,
-			Namespace: namespace,
-		},
-	}
-	resourceClient := common.NewResourceClient(ctx, z.client, namespace)
-	err := resourceClient.Get(clusterInstance)
-	if err != nil {
-		return nil, err
-	}
-	return clusterInstance, nil
+	return ctrl.Result{}, znodePath, nil
 }
 
 // create znode Path
@@ -96,8 +67,8 @@ func (z *ZNodeReconciler) createZnodePath() string {
 
 // create zookeeper znode
 func (z *ZNodeReconciler) createZookeeperZnode(path string, cluster *zkv1alpha1.ZookeeperCluster) error {
-	svcDns := z.getClusterSvcUrl(cluster)
-	logger.Info("zookeeper cluster service client dns url", "dns", svcDns)
+	svcDns := getClusterSvcUrl(cluster)
+	znodeLogger.V(1).Info("zookeeper cluster service client dns url", "dns", svcDns)
 	// for local testing, you must add the zk service to your hosts, and then create port forwarding.
 	// example:
 	//    127.0.0.1       zookeepercluster-sample-cluster.default.svc.cluster.local
@@ -106,27 +77,57 @@ func (z *ZNodeReconciler) createZookeeperZnode(path string, cluster *zkv1alpha1.
 		return err
 	}
 	defer zkCli.Close()
+	znodeLogger.V(1).Info("check if znode exists", "dns", svcDns, "path", path)
 	exists, err := zkCli.Exists(path)
 	if err != nil {
 		znodeLogger.Error(err, "failed to check if znode exists", "namespace", z.instance.Namespace,
-			"name", z.instance.Name, "path", path)
+			"name", z.instance.Name, "zookeeper cluster svc dns", svcDns, "path", path)
 		return err
 	}
 	if exists {
-		znodeLogger.Info("znode already exists", "namespace", z.instance.Namespace,
+		znodeLogger.V(1).Info("znode already exists", "namespace", z.instance.Namespace,
 			"name", z.instance.Name, "zookeeper cluster svc dns", svcDns, "path", path)
 		return nil
 	}
+	znodeLogger.V(1).Info("create new znode in zookeeper cluster", "zk cluster svc dns", svcDns, "path", path)
 	err = zkCli.Create(path, []byte{})
 	if err != nil {
+		znodeLogger.Error(err, "failed to create znode", "namespace", z.instance.Namespace, "name",
+			z.instance.Name, "zookeeper cluster svc dns", svcDns, "path", path)
 		return err
 	}
 	return nil
 }
 
 // get custer service url
-func (z *ZNodeReconciler) getClusterSvcUrl(cluster *zkv1alpha1.ZookeeperCluster) string {
+func getClusterSvcUrl(cluster *zkv1alpha1.ZookeeperCluster) string {
 	svcHost := common.ClusterServiceName(cluster.Name)
 	dns := util.CreateDnsAccess(svcHost, cluster.Namespace, cluster.Spec.ClusterConfig.ClusterDomain)
 	return fmt.Sprintf("%s:%d", dns, zkv1alpha1.ClientPort)
+}
+
+const ZNodeDeleteFinalizer = "znode.zncdata.dev/delete-znode"
+
+type ZnodeDeleteFinalizer struct {
+	Chroot    string
+	ZkCluster *zkv1alpha1.ZookeeperCluster
+}
+
+func (z ZnodeDeleteFinalizer) Finalize(context.Context, client.Object) (finalizer.Result, error) {
+	zkAddress := getClusterSvcUrl(z.ZkCluster)
+	// remove znode from zookeeper cluster
+	zkCli, err := NewZkClient(zkAddress)
+	if err != nil {
+		return finalizer.Result{}, err
+	}
+	defer zkCli.Close()
+	znodeLogger.Info("delete znode from zookeeper", "znode path", z.Chroot)
+	err = zkCli.Delete(z.Chroot)
+	if err != nil {
+		znodeLogger.Error(err, "delete znode from zookeeper error", "zookeeper cluster dns", zkAddress,
+			"znode path", z.Chroot)
+		return finalizer.Result{}, err
+	}
+	znodeLogger.Info("delete znode from zookeeper success", "znode path", z.Chroot)
+	return finalizer.Result{}, nil
 }
