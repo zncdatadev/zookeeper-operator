@@ -3,8 +3,8 @@ kind: ClusterServiceVersion
 metadata:
   annotations:
     alm-examples: '[]'
-    categories: Big Data
     capabilities: Basic Install
+    categories: Big Data
   name: zookeeper-operator.v0.0.0
   namespace: placeholder
 spec:

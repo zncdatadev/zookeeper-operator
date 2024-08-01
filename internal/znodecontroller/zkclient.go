@@ -64,10 +64,26 @@ func (z ZkClient) Create(path string, data []byte) error {
 }
 
 func (z ZkClient) Delete(path string) error {
-	// version == -1 is delete all version
-	err := z.Client.Delete(path, -1)
+	// check if the znode exists children and delete them
+	children, _, err := z.Client.Children(path)
 	if err != nil {
 		return err
+	}
+	if len(children) == 0 {
+		logger.V(1).Info("current znode has no children, delete immediately", "path", path)
+		err = z.Client.Delete(path, -1)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	// if exists children, delete them
+	logger.V(1).Info("current znode has children, should delete all children first", "path", path)
+	for _, child := range children {
+		err = z.Delete(child)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
