@@ -101,7 +101,7 @@ type ImageSpec struct {
 }
 
 type ClusterConfigSpec struct {
-	// +kubebuilder:validation:required
+	// +kubebuilder:validation:optional
 	// +kubebuilder:validation:Enum="cluster-internal";"external-unstable"
 	// +kubebuilder:default="cluster-internal"
 	ListenerClass string `json:"listenerClass"`
