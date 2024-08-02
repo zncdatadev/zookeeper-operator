@@ -1,6 +1,8 @@
 package znodecontroller
 
 import (
+	"errors"
+	"fmt"
 	"github.com/samuel/go-zookeeper/zk"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"time"
@@ -67,6 +69,10 @@ func (z ZkClient) Delete(path string) error {
 	// check if the znode exists children and delete them
 	children, _, err := z.Client.Children(path)
 	if err != nil {
+		if errors.Is(err, zk.ErrNoNode) {
+			logger.V(1).Info("current znode no exists", "path", path)
+			return nil
+		}
 		return err
 	}
 	if len(children) == 0 {
@@ -80,10 +86,19 @@ func (z ZkClient) Delete(path string) error {
 	// if exists children, delete them
 	logger.V(1).Info("current znode has children, should delete all children first", "path", path)
 	for _, child := range children {
-		err = z.Delete(child)
+		err = z.Delete(fmt.Sprintf("%s/%s", path, child))
 		if err != nil {
 			return err
 		}
+	}
+	// delete parent path
+	err = z.Client.Delete(path, -1)
+	if err != nil {
+		if errors.Is(err, zk.ErrNoNode) {
+			logger.V(1).Info("current znode no exists", "path", path)
+			return nil
+		}
+		return err
 	}
 	return nil
 }
