@@ -20,8 +20,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:path=zookeeperznodes,shortName=znode;znodes,singular=zookeeperznode
+// +kubebuilder:subresource:status
+// +operator-sdk:csv:customresourcedefinitions:displayName="Zookeeper Znode"
 
 // ZookeeperZnode is the Schema for the zookeeperznodes API
 type ZookeeperZnode struct {

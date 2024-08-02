@@ -15,6 +15,28 @@ spec:
       displayName: Zookeeper Cluster
       kind: ZookeeperCluster
       name: zookeeperclusters.zookeeper.zncdata.dev
+      resources:
+      - kind: ConfigMap
+        name: ""
+        version: v1
+      - kind: Deployment
+        name: ""
+        version: app/v1
+      - kind: PersistentVolume
+        name: ""
+        version: v1
+      - kind: PersistentVolumeClaim
+        name: ""
+        version: v1
+      - kind: Pod
+        name: ""
+        version: v1
+      - kind: PodDisruptionBudget
+        name: ""
+        version: v1
+      - kind: Service
+        name: ""
+        version: v1
       version: v1alpha1
     - description: ZookeeperZnode is the Schema for the zookeeperznodes API
       displayName: Zookeeper Znode

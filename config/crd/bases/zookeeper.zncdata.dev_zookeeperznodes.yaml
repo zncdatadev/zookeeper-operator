@@ -11,6 +11,9 @@ spec:
     kind: ZookeeperZnode
     listKind: ZookeeperZnodeList
     plural: zookeeperznodes
+    shortNames:
+    - znode
+    - znodes
     singular: zookeeperznode
   scope: Namespaced
   versions:
