@@ -49,7 +49,15 @@ const (
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:path=zookeeperclusters,scope=Namespaced,shortName=zk;zks,singular=zookeepercluster
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+// +operator-sdk:csv:customresourcedefinitions:displayName="Zookeeper Cluster"
+// This annotation provides a hint for OLM which resources are managed by SparkHistoryServer kind.
+// It's not mandatory to list all resources.
+// https://sdk.operatorframework.io/docs/olm-integration/generation/#csv-fields
+// https://sdk.operatorframework.io/docs/building-operators/golang/references/markers/
+// +operator-sdk:csv:customresourcedefinitions:resources={{Deployment,app/v1},{Service,v1},{Pod,v1},{ConfigMap,v1},{PersistentVolumeClaim,v1},{PersistentVolume,v1},{PodDisruptionBudget,v1}}
 
 // ZookeeperCluster is the Schema for the zookeeperclusters API
 type ZookeeperCluster struct {

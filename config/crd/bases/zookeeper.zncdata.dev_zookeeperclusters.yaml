@@ -11,10 +11,17 @@ spec:
     kind: ZookeeperCluster
     listKind: ZookeeperClusterList
     plural: zookeeperclusters
+    shortNames:
+    - zk
+    - zks
     singular: zookeepercluster
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: ZookeeperCluster is the Schema for the zookeeperclusters API
