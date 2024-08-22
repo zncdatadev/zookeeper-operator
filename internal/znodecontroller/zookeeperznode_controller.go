@@ -18,19 +18,21 @@ package znodecontroller
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/go-logr/logr"
 	"github.com/zncdatadev/zookeeper-operator/internal/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/finalizer"
-	"time"
-
-	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/finalizer"
+	"time"
 
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 )
+
+var ErrZookeeperCluster = errors.New("zookeeper cluster get failed")
 
 // ZookeeperZnodeReconciler reconciles a ZookeeperZnode object
 type ZookeeperZnodeReconciler struct {
@@ -71,7 +73,10 @@ func (r *ZookeeperZnodeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	r.Log.Info("zookeeper-znode resource found", "Name", znode.Name)
 	zkCluster, err := r.getClusterInstance(znode, ctx)
 	if err != nil {
-		return ctrl.Result{RequeueAfter: time.Millisecond * 10000}, err
+		if errors.Is(err, ErrZookeeperCluster) {
+			return ctrl.Result{RequeueAfter: time.Millisecond * 10000}, nil
+		}
+		return ctrl.Result{}, err
 	}
 	// reconcile order by "cluster -> role -> role-group -> resource"
 	result, chroot, err := NewZNodeReconciler(r.Scheme, znode, r.Client).reconcile(ctx, zkCluster)
@@ -110,7 +115,7 @@ func (r *ZookeeperZnodeReconciler) getClusterInstance(znode *zkv1alpha1.Zookeepe
 	resourceClient := common.NewResourceClient(ctx, r.Client, namespace)
 	err := resourceClient.Get(clusterInstance)
 	if err != nil {
-		return nil, err
+		return nil, ErrZookeeperCluster
 	}
 	return clusterInstance, nil
 }
