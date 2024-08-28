@@ -105,7 +105,7 @@ schema: olm.channel
 package: zookeeper-operator
 name: stable
 entries:
-  - name: zookeeper-operator.v0.0.1
+  - name: zookeeper-operator.v0.0.0-dev
 ---
 schema: olm.bundle
-image: quay.io/zncdatadev/zookeeper-operator-bundle:v0.0.1
+image: quay.io/zncdatadev/zookeeper-operator-bundle:0.0.0-dev
