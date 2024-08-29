@@ -20,41 +20,39 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/go-logr/logr"
-	"github.com/zncdatadev/zookeeper-operator/internal/common"
+	"github.com/zncdatadev/operator-go/pkg/client"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/finalizer"
-	"time"
 
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
+	"github.com/zncdatadev/zookeeper-operator/internal/security"
 )
 
 var ErrZookeeperCluster = errors.New("zookeeper cluster get failed")
 
 // ZookeeperZnodeReconciler reconciles a ZookeeperZnode object
 type ZookeeperZnodeReconciler struct {
-	client.Client
+	ctrlclient.Client
 	Scheme *runtime.Scheme
 	Log    logr.Logger
 }
 
-//+kubebuilder:rbac:groups=zookeeper.zncdata.dev,resources=zookeeperznodes,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=zookeeper.zncdata.dev,resources=zookeeperznodes/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=zookeeper.zncdata.dev,resources=zookeeperznodes/finalizers,verbs=update
+// +kubebuilder:rbac:groups=zookeeper.zncdata.dev,resources=zookeeperznodes,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=zookeeper.zncdata.dev,resources=zookeeperznodes/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=zookeeper.zncdata.dev,resources=zookeeperznodes/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core,resources=endpoints,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;watch
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the ZookeeperZnode object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
 func (r *ZookeeperZnodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -63,7 +61,7 @@ func (r *ZookeeperZnodeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	znode := &zkv1alpha1.ZookeeperZnode{}
 
 	if err := r.Get(ctx, req.NamespacedName, znode); err != nil {
-		if client.IgnoreNotFound(err) != nil {
+		if ctrlclient.IgnoreNotFound(err) != nil {
 			r.Log.Error(err, "unable to fetch ZookeeperZNode")
 			return ctrl.Result{}, err
 		}
@@ -78,11 +76,15 @@ func (r *ZookeeperZnodeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 		return ctrl.Result{}, err
 	}
+	zkSecurity, err := security.NewZookeeperSecurity(zkCluster.Spec.ClusterConfig)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 	// reconcile order by "cluster -> role -> role-group -> resource"
-	result, chroot, err := NewZNodeReconciler(r.Scheme, znode, r.Client).reconcile(ctx, zkCluster)
+	result, chroot, err := NewZNodeReconciler(r.Scheme, znode, r.Client, zkSecurity).reconcile(ctx, zkCluster)
 
 	//setup finalizer
-	if err := r.setupFinalizer(znode, zkCluster, ctx, chroot); err != nil {
+	if err := r.setupFinalizer(znode, zkCluster, ctx, chroot, int32(zkSecurity.ClientPort())); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -112,8 +114,8 @@ func (r *ZookeeperZnodeReconciler) getClusterInstance(znode *zkv1alpha1.Zookeepe
 			Namespace: namespace,
 		},
 	}
-	resourceClient := common.NewResourceClient(ctx, r.Client, namespace)
-	err := resourceClient.Get(clusterInstance)
+	resourceClient := client.NewClient(r.Client, clusterInstance)
+	err := resourceClient.Get(ctx, clusterInstance)
 	if err != nil {
 		return nil, ErrZookeeperCluster
 	}
@@ -121,9 +123,9 @@ func (r *ZookeeperZnodeReconciler) getClusterInstance(znode *zkv1alpha1.Zookeepe
 }
 
 func (r *ZookeeperZnodeReconciler) setupFinalizer(cr *zkv1alpha1.ZookeeperZnode, zkCluster *zkv1alpha1.ZookeeperCluster,
-	ctx context.Context, chroot string) error {
+	ctx context.Context, chroot string, clientPort int32) error {
 	finalizers := finalizer.NewFinalizers()
-	err := finalizers.Register(ZNodeDeleteFinalizer, ZnodeDeleteFinalizer{Chroot: chroot, ZkCluster: zkCluster})
+	err := finalizers.Register(ZNodeDeleteFinalizer, ZnodeDeleteFinalizer{Chroot: chroot, ZkCluster: zkCluster, clientPort: clientPort})
 	if err != nil {
 		return err
 	}

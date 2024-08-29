@@ -3,34 +3,43 @@ package znodecontroller
 import (
 	"context"
 	"fmt"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/finalizer"
 
+	"github.com/zncdatadev/operator-go/pkg/builder"
+	"github.com/zncdatadev/operator-go/pkg/client"
+	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/common"
+	"github.com/zncdatadev/zookeeper-operator/internal/security"
 	"github.com/zncdatadev/zookeeper-operator/internal/util"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var znodeLogger = ctrl.Log.WithName("znode-controller")
 
 type ZNodeReconciler struct {
-	scheme   *runtime.Scheme
-	instance *zkv1alpha1.ZookeeperZnode
-	client   client.Client
+	scheme     *runtime.Scheme
+	instance   *zkv1alpha1.ZookeeperZnode
+	client     ctrlclient.Client
+	zkSecurity *security.ZookeeperSecurity
 }
 
 // NewZNodeReconciler new a ZNodeReconciler
 func NewZNodeReconciler(
 	scheme *runtime.Scheme,
 	instance *zkv1alpha1.ZookeeperZnode,
-	client client.Client,
+	client ctrlclient.Client,
+	zkSecurity *security.ZookeeperSecurity,
 ) *ZNodeReconciler {
 	return &ZNodeReconciler{
-		scheme:   scheme,
-		instance: instance,
-		client:   client,
+		scheme:     scheme,
+		instance:   instance,
+		client:     client,
+		zkSecurity: zkSecurity,
 	}
 }
 
@@ -46,8 +55,13 @@ func (z *ZNodeReconciler) reconcile(ctx context.Context, cluster *zkv1alpha1.Zoo
 	// 2. create configmap in zookeeper to display zookeeper cluster info
 	znodeLogger.Info("create configmap for zookeeper discovery", "namaspace", z.instance.Namespace,
 		"name", z.instance.Name, "path", znodePath)
-	discovery := common.NewZookeeperDiscovery(z.scheme, cluster, z.client, z.instance, &znodePath)
-	res, err := discovery.ReconcileResource(ctx, common.NewMultiResourceBuilder(discovery))
+	client := client.NewClient(z.client, z.instance)
+	listenerClass := cluster.Spec.ClusterConfig.ListenerClass
+	gvk := z.instance.GetObjectKind().GroupVersionKind()
+	clusterInfo := reconciler.ClusterInfo{GVK: &metav1.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind}, ClusterName: z.instance.Name}
+	discoveries := common.NewDiscoveries(ctx, zkv1alpha1.ListenerClass(listenerClass), client, cluster, &znodePath,
+		clusterInfo.GetLabels(), clusterInfo.GetAnnotations(), z.zkSecurity)
+	res, err := z.reconcileDiscovery(ctx, discoveries)
 	if err != nil {
 		znodeLogger.Error(err, "create configmap for zookeeper discovery error",
 			"namaspace", z.instance.Namespace, "discovery owner", z.instance.Name, "path", znodePath)
@@ -59,6 +73,20 @@ func (z *ZNodeReconciler) reconcile(ctx context.Context, cluster *zkv1alpha1.Zoo
 	return ctrl.Result{}, znodePath, nil
 }
 
+func (z *ZNodeReconciler) reconcileDiscovery(ctx context.Context, discoveries []reconciler.ResourceReconciler[builder.ConfigBuilder]) (ctrl.Result, error) {
+	for _, d := range discoveries {
+		res, err := d.Reconcile(ctx)
+
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if res.RequeueAfter > 0 {
+			return ctrl.Result{RequeueAfter: res.RequeueAfter}, nil
+		}
+	}
+	return ctrl.Result{}, nil
+}
+
 // create znode Path
 // like: "/znode-d744b792-6194-43bd-a9f6-46d2a6ffeea1"
 func (z *ZNodeReconciler) createZnodePath() string {
@@ -67,7 +95,7 @@ func (z *ZNodeReconciler) createZnodePath() string {
 
 // create zookeeper znode
 func (z *ZNodeReconciler) createZookeeperZnode(path string, cluster *zkv1alpha1.ZookeeperCluster) error {
-	svcDns := getClusterSvcUrl(cluster)
+	svcDns := getClusterSvcUrl(cluster, int32(z.zkSecurity.ClientPort()))
 	znodeLogger.V(1).Info("zookeeper cluster service client dns url", "dns", svcDns)
 	// for local testing, you must add the zk service to your hosts, and then create port forwarding.
 	// example:
@@ -100,21 +128,22 @@ func (z *ZNodeReconciler) createZookeeperZnode(path string, cluster *zkv1alpha1.
 }
 
 // get custer service url
-func getClusterSvcUrl(cluster *zkv1alpha1.ZookeeperCluster) string {
+func getClusterSvcUrl(cluster *zkv1alpha1.ZookeeperCluster, clientProt int32) string {
 	svcHost := common.ClusterServiceName(cluster.Name)
 	dns := util.CreateDnsAccess(svcHost, cluster.Namespace, cluster.Spec.ClusterConfig.ClusterDomain)
-	return fmt.Sprintf("%s:%d", dns, zkv1alpha1.ClientPort)
+	return fmt.Sprintf("%s:%d", dns, clientProt)
 }
 
 const ZNodeDeleteFinalizer = "znode.zncdata.dev/delete-znode"
 
 type ZnodeDeleteFinalizer struct {
-	Chroot    string
-	ZkCluster *zkv1alpha1.ZookeeperCluster
+	clientPort int32
+	Chroot     string
+	ZkCluster  *zkv1alpha1.ZookeeperCluster
 }
 
-func (z ZnodeDeleteFinalizer) Finalize(context.Context, client.Object) (finalizer.Result, error) {
-	zkAddress := getClusterSvcUrl(z.ZkCluster)
+func (z ZnodeDeleteFinalizer) Finalize(context.Context, ctrlclient.Object) (finalizer.Result, error) {
+	zkAddress := getClusterSvcUrl(z.ZkCluster, z.clientPort)
 	// remove znode from zookeeper cluster
 	zkCli, err := NewZkClient(zkAddress)
 	if err != nil {
