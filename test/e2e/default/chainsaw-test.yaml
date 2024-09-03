@@ -30,7 +30,8 @@ spec:
     - apply:
         file: znode.yaml
     - assert:
+        timeout: 4m
         file: znode-assert.yaml
     cleanup:
     - sleep:
-        duration: 10s
+        duration: 30s

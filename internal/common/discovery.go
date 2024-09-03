@@ -13,11 +13,8 @@ import (
 	"golang.org/x/exp/maps"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-var discoveryLog = ctrl.Log.WithName("zk-discovery")
 
 func NewDiscoveries(
 	ctx context.Context,
@@ -47,12 +44,6 @@ func NewDiscoveries(
 	return discoveries
 }
 
-func NewDiscovery(client *client.Client, cluster *zkv1alpha1.ZookeeperCluster, chroot *string,
-	zkSecurity *security.ZookeeperSecurity, labels, annotaions map[string]string, builderFunc func() Discovery) Discovery {
-	cluster = getZkCluster(client, cluster)
-	return builderFunc()
-}
-
 func NewPodHostsDiscovery(client *client.Client, cluster *zkv1alpha1.ZookeeperCluster, zkSecurity *security.ZookeeperSecurity,
 	chroot *string, labels, annotaions map[string]string) Discovery {
 	cluster = getZkCluster(client, cluster)
@@ -71,10 +62,7 @@ func getZkCluster(client *client.Client, cluster *zkv1alpha1.ZookeeperCluster) *
 
 func NewNodePortDiscovery(client *client.Client, cluster *zkv1alpha1.ZookeeperCluster, zkSecrity *security.ZookeeperSecurity, chroot *string, labels, annotaions map[string]string) Discovery {
 	crName := client.GetOwnerName()
-	if cluster == nil {
-		owner := client.GetOwnerReference()
-		cluster = owner.(*zkv1alpha1.ZookeeperCluster)
-	}
+	cluster = getZkCluster(client, cluster)
 	clusterSvcName := ClusterServiceName(cluster.GetName())
 	nodePortDiscovery := &NodePortDiscoveryBuilder{crName: crName, clusterServiceName: clusterSvcName}
 	nodePortDiscovery.DiscoveryBuilder = NewDiscoveryBuilder(client, chroot, zkSecrity, labels, annotaions, nodePortDiscovery)

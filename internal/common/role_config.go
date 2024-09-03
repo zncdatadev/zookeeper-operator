@@ -126,7 +126,7 @@ func (n *ZookeeperConfig) MergeDefaultConfig(mergedCfg *zkv1alpha1.RoleGroupSpec
 	config := mergedCfg.Config
 
 	if config == nil {
-		mergedCfg.Config = &zkv1alpha1.ConfigSpec{}
+		config = &zkv1alpha1.ConfigSpec{}
 	}
 	// resources
 	if config.Resources == nil {

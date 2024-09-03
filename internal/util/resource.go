@@ -13,9 +13,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-var (
-	logger = ctrl.Log.WithName("util")
-)
 
 func QuantityToMB(quantity resource.Quantity) float64 {
 	return (float64(quantity.Value() / (1024 * 1024)))
