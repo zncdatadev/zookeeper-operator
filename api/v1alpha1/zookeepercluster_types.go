@@ -107,10 +107,10 @@ type ZookeeperClusterList struct {
 type ZookeeperClusterSpec struct {
 	// +kubebuilder:validation:Optional
 	Image *ImageSpec `json:"image"`
-	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Optional
 	ClusterOperationSpec *commonsv1alpha1.ClusterOperationSpec `json:"clusterOperation,omitempty"`
-	// +kubebuilder:validation:Required
-	ClusterConfig *ClusterConfigSpec `json:"clusterConfig"`
+	// +kubebuilder:validation:Optional
+	ClusterConfig *ClusterConfigSpec `json:"clusterConfig,omitempty"`
 	// +kubebuilder:validation:Required
 	Server *ServerSpec `json:"server"`
 }
