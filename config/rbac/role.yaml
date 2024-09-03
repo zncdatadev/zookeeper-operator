@@ -20,6 +20,9 @@ rules:
   - ""
   resources:
   - configmaps
+  - secrets
+  - serviceaccounts
+  - services
   verbs:
   - create
   - delete
@@ -32,22 +35,15 @@ rules:
   - ""
   resources:
   - endpoints
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - pods
   verbs:
   - get
   - list
   - watch
 - apiGroups:
-  - ""
+  - events.k8s.io
   resources:
-  - serviceaccounts
+  - events
   verbs:
   - create
   - delete
@@ -57,9 +53,10 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ""
+  - rbac.authorization.k8s.io
   resources:
-  - services
+  - clusterroles
+  - rolebindings
   verbs:
   - create
   - delete
@@ -72,31 +69,6 @@ rules:
   - zookeeper.zncdata.dev
   resources:
   - zookeeperclusters
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - zookeeper.zncdata.dev
-  resources:
-  - zookeeperclusters/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - zookeeper.zncdata.dev
-  resources:
-  - zookeeperclusters/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - zookeeper.zncdata.dev
-  resources:
   - zookeeperznodes
   verbs:
   - create
@@ -109,12 +81,14 @@ rules:
 - apiGroups:
   - zookeeper.zncdata.dev
   resources:
+  - zookeeperclusters/finalizers
   - zookeeperznodes/finalizers
   verbs:
   - update
 - apiGroups:
   - zookeeper.zncdata.dev
   resources:
+  - zookeeperclusters/status
   - zookeeperznodes/status
   verbs:
   - get

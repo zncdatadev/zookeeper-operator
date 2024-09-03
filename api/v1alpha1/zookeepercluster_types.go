@@ -17,28 +17,45 @@ limitations under the License.
 package v1alpha1
 
 import (
+	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
-	ZooCfgFileName  = "zoo.cfg"
-	LogbackFileName = "logback.xml"
-	JavaEnvFileName = "java.env"
+	ZooCfgFileName   = "zoo.cfg"
+	SecurityFileName = "security.properties"
+	LogbackFileName  = "logback.xml"
+	JavaEnvFileName  = "java.env"
 )
 
 const (
-	ClientPortName   = "client"
-	FollowerPortName = "follower"
-	ElectionPortName = "election"
+	MaxZKLogFileSize         = "10Mi"
+	ConsoleConversionPattern = "%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n"
+)
 
-	ClientPort   = 2181
-	FollowerPort = 2888
-	ElectionPort = 3888
+const (
+	ClientPortName     = "client"
+	SecurityClientName = "secureClient"
+	LeaderPortName     = "leader"
+	ElectionPortName   = "election"
+	MetricsPortName    = "metrics"
 
-	ServiceClientPort   = 2181
-	ServiceFollowerPort = 2888
-	ServiceElectionPort = 3888
+	ClientPort       = 2181
+	SecureClientPort = 2282
+	LeaderPort       = 2888
+	ElectionPort     = 3888
+	MetricsPort      = 9505
+
+	AdminPort = 8080
+)
+
+// volume name
+const (
+	DataDirName      = "data"
+	LogDirName       = "log"
+	ConfigDirName    = "config"
+	LogConfigDirName = "log-config"
 )
 
 type ListenerClass string
@@ -53,7 +70,7 @@ const (
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 // +operator-sdk:csv:customresourcedefinitions:displayName="Zookeeper Cluster"
-// This annotation provides a hint for OLM which resources are managed by SparkHistoryServer kind.
+// This annotation provides a hint for OLM which resources are managed by ZookeeperCluster kind.
 // It's not mandatory to list all resources.
 // https://sdk.operatorframework.io/docs/olm-integration/generation/#csv-fields
 // https://sdk.operatorframework.io/docs/building-operators/golang/references/markers/
@@ -88,24 +105,14 @@ type ZookeeperClusterList struct {
 
 // ZookeeperClusterSpec defines the desired state of ZookeeperCluster
 type ZookeeperClusterSpec struct {
-	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Optional
 	Image *ImageSpec `json:"image"`
+	// +kubebuilder:validation:Required
+	ClusterOperationSpec *commonsv1alpha1.ClusterOperationSpec `json:"clusterOperation,omitempty"`
 	// +kubebuilder:validation:Required
 	ClusterConfig *ClusterConfigSpec `json:"clusterConfig"`
 	// +kubebuilder:validation:Required
 	Server *ServerSpec `json:"server"`
-}
-
-type ImageSpec struct {
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default=bitnami/zookeeper
-	Repository string `json:"repository,omitempty"`
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default:="423"
-	Tag string `json:"tag,omitempty"`
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default:=IfNotPresent
-	PullPolicy corev1.PullPolicy `json:"pullPolicy,omitempty"`
 }
 
 type ClusterConfigSpec struct {
@@ -121,6 +128,60 @@ type ClusterConfigSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default:=1
 	MinServerId int32 `json:"minServerId,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	Authentication *AuthenticationSpec `json:"authentication,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	Tls *ZookeeperTls `json:"tls,omitempty"`
+
+	// Name of the Vector aggregator [discovery ConfigMap].
+	// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+	// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
+	// to learn how to configure log aggregation with Vector.
+
+	// +kubebuilder:validation:Optional
+	VectorAggregatorConfigMapName *string `json:"vectorAggregatorConfigMapName,omitempty"`
+}
+
+type AuthenticationSpec struct {
+	//
+	// ## mTLS
+	//
+	// Only affects client connections. This setting controls:
+	// - If clients need to authenticate themselves against the server via TLS
+	// - Which ca.crt to use when validating the provided client certs
+	// This will override the server TLS settings (if set) in `spec.clusterConfig.tls.serverSecretClass`.
+	AuthenticationClass []string `json:"authenticationClass,omitempty"`
+}
+
+// ZookeeperTls defines the tls setting for zookeeper cluster
+type ZookeeperTls struct {
+	// QuorumSecretClass is the secret class for internal quorum communication.
+	// Use mutual verification between Zookeeper Nodes
+	// (mandatory). This setting controls:
+	// - Which cert the servers should use to authenticate themselves against other servers
+	// - Which ca.crt to use when validating the other server
+	// Defaults to `tls`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default=tls
+	QuorumSecretClass string `json:"quorumSecretClass,omitempty"`
+
+	// ServerSecretClass is the secret class for client connections.
+	// This setting controls:
+	// - If TLS encryption is used at all
+	// - Which cert the servers should use to authenticate themselves against the client
+	// Defaults to `tls`.
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default=tls
+	ServerSecretClass string `json:"serverSecretClass,omitempty"`
+
+	// todo: use secret resource
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default="chageit"
+	SSLStorePassword string `json:"sslStorePassword,omitempty"`
 }
 
 type ServerSpec struct {
@@ -128,13 +189,13 @@ type ServerSpec struct {
 	Config *ConfigSpec `json:"config,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	RoleGroups map[string]*RoleGroupSpec `json:"roleGroups,omitempty"`
+	RoleGroups map[string]RoleGroupSpec `json:"roleGroups,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	PodDisruptionBudget *PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
+	PodDisruptionBudget *commonsv1alpha1.PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	CommandArgsOverrides []string `json:"commandArgsOverrides,omitempty"`
+	CommandOverrides []string `json:"commandOverrides,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	ConfigOverrides *ConfigOverridesSpec `json:"configOverrides,omitempty"`
@@ -142,8 +203,8 @@ type ServerSpec struct {
 	// +kubebuilder:validation:Optional
 	EnvOverrides map[string]string `json:"envOverrides,omitempty"`
 
-	//// +kubebuilder:validation:Optional
-	//PodOverride corev1.PodSpec `json:"podOverride,omitempty"`
+	// +kubebuilder:validation:Optional
+	PodOverrides *corev1.PodTemplateSpec `json:"podOverrides,omitempty"`
 }
 
 type RoleGroupSpec struct {
@@ -155,7 +216,10 @@ type RoleGroupSpec struct {
 	Config *ConfigSpec `json:"config,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	CommandArgsOverrides []string `json:"commandArgsOverrides,omitempty"`
+	PodDisruptionBudget *commonsv1alpha1.PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	CommandOverrides []string `json:"commandOverrides,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	ConfigOverrides *ConfigOverridesSpec `json:"configOverrides,omitempty"`
@@ -163,13 +227,13 @@ type RoleGroupSpec struct {
 	// +kubebuilder:validation:Optional
 	EnvOverrides map[string]string `json:"envOverrides,omitempty"`
 
-	//// +kubebuilder:validation:Optional
-	//PodOverride corev1.PodSpec `json:"podOverride,omitempty"`
+	// +kubebuilder:validation:Optional
+	PodOverrides *corev1.PodTemplateSpec `json:"podOverrides,omitempty"`
 }
 
 type ConfigSpec struct {
 	// +kubebuilder:validation:Optional
-	Resources *ResourcesSpec `json:"resources,omitempty"`
+	Resources *commonsv1alpha1.ResourcesSpec `json:"resources,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	SecurityContext *corev1.PodSecurityContext `json:"securityContext"`
@@ -185,6 +249,10 @@ type ConfigSpec struct {
 
 	// +kubebuilder:validation:Optional
 	PodDisruptionBudget *PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
+
+	// Use time.ParseDuration to parse the string
+	// +kubebuilder:validation:Optional
+	GracefulShutdownTimeout *string `json:"gracefulShutdownTimeout,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	StorageClass string `json:"storageClass,omitempty"`
@@ -202,8 +270,14 @@ type ConfigSpec struct {
 	Logging *ContainerLoggingSpec `json:"logging,omitempty"`
 }
 
+type ContainerLoggingSpec struct {
+	// +kubebuilder:validation:Optional
+	Zookeeper *commonsv1alpha1.LoggingConfigSpec `json:"zookeeperCluster,omitempty"`
+}
+
 type ConfigOverridesSpec struct {
-	ZooCfg map[string]string `json:"zoo.cfg,omitempty"`
+	ZooCfg         map[string]string `json:"zoo.cfg,omitempty"`
+	SercurityProps map[string]string `json:"security.properties,omitempty"`
 }
 
 type PodDisruptionBudgetSpec struct {
