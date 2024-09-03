@@ -19055,8 +19055,6 @@ spec:
                     type: object
                 type: object
             required:
-            - clusterConfig
-            - clusterOperation
             - server
             type: object
           status:
