@@ -55,8 +55,10 @@ func NewZookeeperSecurity(clusterConfig *zkv1alpha1.ClusterConfigSpec) (*Zookeep
 	resolvedAuthenticationClasses := "" // TODO, unsupported for now
 
 	sslStorePassword := "changeit"
-	quorumSecretClass := quorumTLSDefault()
-	serverSecretClass := serverTLSDefault()
+	// quorumSecretClass := quorumTLSDefault()
+	// serverSecretClass := serverTLSDefault()
+	serverSecretClass := ""
+	quorumSecretClass := ""
 	if clusterConfig.Tls != nil {
 		serverSecretClass = clusterConfig.Tls.ServerSecretClass
 		sslStorePassword = clusterConfig.Tls.SSLStorePassword
@@ -98,10 +100,11 @@ func (z *ZookeeperSecurity) AddVolumeMounts(podBuilder *corev1.PodTemplateSpec, 
 		tlsVolume := util.CreateTlsKeystoreVolume(ServerTlsVolumeName, tlsSecretClass, z.sslStorePassword)
 		z.addVolume(podBuilder, tlsVolume)
 	}
-
-	z.addVolumeMount(zkContainer, QuorumTlsVolumeName, QuorumTLSDir)
-	quorumTLSVolume := util.CreateTlsKeystoreVolume(QuorumTlsVolumeName, z.quorumSecretClass, z.sslStorePassword)
-	z.addVolume(podBuilder, quorumTLSVolume)
+	if z.quorumSecretClass != "" {
+		z.addVolumeMount(zkContainer, QuorumTlsVolumeName, QuorumTLSDir)
+		quorumTLSVolume := util.CreateTlsKeystoreVolume(QuorumTlsVolumeName, z.quorumSecretClass, z.sslStorePassword)
+		z.addVolume(podBuilder, quorumTLSVolume)
+	}
 }
 
 // statefulset add tls volumes
@@ -118,16 +121,21 @@ func (z *ZookeeperSecurity) addVolumeMount(container *corev1.Container, volumeNa
 func (z *ZookeeperSecurity) ConfigSettings() map[string]string {
 	config := make(map[string]string)
 
-	// Quorum TLS
-	config[SSLQuorum] = "true"
-	config[SSLQuorumHostNameVerification] = "true"
-	config[SSLQuorumClientAuth] = "need"
-	config[ServerCnxnFactory] = "org.apache.zookeeper.server.NettyServerCnxnFactory"
-	config[SSLAuthProviderX509] = "org.apache.zookeeper.server.auth.X509AuthenticationProvider"
-	config[SSLQuorumKeyStoreLocation] = fmt.Sprintf("%s/keystore.p12", QuorumTLSDir)
-	config[SSLQuorumTrustStoreLocation] = fmt.Sprintf("%s/truststore.p12", QuorumTLSDir)
-	config[SSLQuorumKeyStorePassword] = z.sslStorePassword
-	config[SSLQuorumTrustStorePassword] = z.sslStorePassword
+	if z.quorumSecretClass != "" {
+		authNeeded := "need"
+		// Quorum TLS
+		config[SSLQuorum] = "true"
+		config[SSLQuorumHostNameVerification] = "true"
+		config[SSLQuorumClientAuth] = authNeeded
+		config[ServerCnxnFactory] = "org.apache.zookeeper.server.NettyServerCnxnFactory"
+		config[SSLAuthProviderX509] = "org.apache.zookeeper.server.auth.X509AuthenticationProvider"
+		config[SSLQuorumKeyStoreLocation] = fmt.Sprintf("%s/keystore.p12", QuorumTLSDir)
+		config[SSLQuorumTrustStoreLocation] = fmt.Sprintf("%s/truststore.p12", QuorumTLSDir)
+		if z.sslStorePassword != "" {
+			config[SSLQuorumKeyStorePassword] = z.sslStorePassword
+			config[SSLQuorumTrustStorePassword] = z.sslStorePassword
+		}
+	}
 
 	// Server TLS
 	if z.TLSEnabled() {
@@ -163,8 +171,10 @@ func (z *ZookeeperSecurity) ConfigSettings() map[string]string {
 		config[SSLKeyStoreLocation] = fmt.Sprintf("%s/keystore.p12", ServerTLSDir)
 		config[SSLTrustStoreLocation] = fmt.Sprintf("%s/truststore.p12", ServerTLSDir)
 
-		config[SSLKeyStorePassword] = z.sslStorePassword
-		config[SSLTrustStorePassword] = z.sslStorePassword
+		if z.sslStorePassword != "" {
+			config[SSLKeyStorePassword] = z.sslStorePassword
+			config[SSLTrustStorePassword] = z.sslStorePassword
+		}
 
 		//todo auth tls
 		if z.resolvedAuthenticationClasses != "" {
@@ -192,11 +202,12 @@ func (z *ZookeeperSecurity) getTLSSecretClass() string {
 }
 
 // Helper methods to provide defaults in the CRDs and tests
-func serverTLSDefault() string {
-	return TlsDefaultSecretClass
-}
+// func serverTLSDefault() string {
+// 	return TlsDefaultSecretClass
+// }
 
-// Helper methods to provide defaults in the CRDs and tests
-func quorumTLSDefault() string {
-	return TlsDefaultSecretClass
-}
+// // quorumTLSDefault
+// // Helper methods to provide defaults in the CRDs and tests
+// func quorumTLSDefault() string {
+// 	return TlsDefaultSecretClass
+// }

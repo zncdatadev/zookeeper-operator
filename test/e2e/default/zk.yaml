@@ -33,11 +33,22 @@ spec:
     stopped: false
   clusterConfig:
     listenerClass: external-unstable
+    # tls:
+    #   quorumSecretClass: tls
+    #   serverSecretClass: tls
   server:
     roleGroups:
       default:
-        replicas: 3
+        replicas: 2
         config:
+          resources:
+            cpu:
+              min: "500m"
+              max: "1500m"
+            memory:
+              limit: "2Gi"
+            storage:
+              capacity: "1Gi"
           logging:
             zookeeperCluster:
               loggers:

@@ -98,7 +98,7 @@ func (r *Reconciler) RegisterResourceWithRoleGroup(_ context.Context, info *reco
 
 	// 2. service
 	listenerClass := r.ClusterConfig.ListenerClass
-	service := NewRoleGroupServiceReconciler(r.Client, info, listenerClass, zkSecurity)
+	service := NewServiceReconciler(r.Client, info, listenerClass, zkSecurity)
 	reconcilers = append(reconcilers, service)
 
 	// 3. cofigmap
