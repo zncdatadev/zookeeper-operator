@@ -83,15 +83,13 @@ spec:
                         default: tls
                         type: string
                       serverSecretClass:
-                        default: tls
                         type: string
                       sslStorePassword:
-                        default: chageit
+                        default: changeit
                         description: 'todo: use secret resource'
                         type: string
                     required:
                     - quorumSecretClass
-                    - serverSecretClass
                     type: object
                   vectorAggregatorConfigMapName:
                     type: string
@@ -1431,11 +1429,6 @@ spec:
                                 type: string
                             type: object
                         type: object
-                      storageClass:
-                        type: string
-                      storageSize:
-                        default: 8Gi
-                        type: string
                       tolerations:
                         items:
                           description: |-
@@ -10820,11 +10813,6 @@ spec:
                                       type: string
                                   type: object
                               type: object
-                            storageClass:
-                              type: string
-                            storageSize:
-                              default: 8Gi
-                              type: string
                             tolerations:
                               items:
                                 description: |-

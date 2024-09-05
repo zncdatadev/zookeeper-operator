@@ -304,9 +304,12 @@ func (b *StatefulsetBuilder) GetReadinessProbe() *corev1.Probe {
 				Command: []string{
 					"bash",
 					"-c",
-					// srvr command not work here, can not find reason, so use ruok instead
-					// fmt.Sprintf("exec 3<>/dev/tcp/127.0.0.1/%d && echo srvr >&3 && grep '^Mode: ' <&3", b.zkSecurity.ClientPort()),
-					fmt.Sprintf("exec 3<>/dev/tcp/127.0.0.1/%d && echo ruok >&3 && grep 'imok' <&3", b.zkSecurity.ClientPort()),
+					// srvr command returns mode of the server, ruok command checks if the server is running
+					// !!!Note !!!: if you wanner srvr command work well that you must set `publishNotReadyAddresses=true` in headless service
+					fmt.Sprintf("exec 3<>/dev/tcp/127.0.0.1/%d && echo srvr >&3 && grep '^Mode: ' <&3", b.zkSecurity.ClientPort()),
+
+					// fmt.Sprintf("exec 3<>/dev/tcp/127.0.0.1/%d && echo ruok >&3 && grep 'imok' <&3", b.zkSecurity.ClientPort()),
+					// fmt.Sprintf(`exec 3<>/dev/tcp/127.0.0.1/%d && echo srvr >&3 && filename="/tmp/foo_$(date +"%%H%%M%%S%%N")" && cat <&3 > "$filename" && grep "^Mode: " "$filename"`, b.zkSecurity.ClientPort()),
 				},
 			},
 		},

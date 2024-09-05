@@ -1,12 +1,13 @@
 package common
 
 import (
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	LabelCrName    = "app.kubernetes.io/Name"
+	LabelCrName    = "app.kubernetes.io/name"
 	LabelComponent = "app.kubernetes.io/component"
 	LabelManagedBy = "app.kubernetes.io/managed-by"
 )

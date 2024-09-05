@@ -174,13 +174,12 @@ type ZookeeperTls struct {
 	// - Which cert the servers should use to authenticate themselves against the client
 	// Defaults to `tls`.
 
-	// +kubebuilder:validation:Required
-	// +kubebuilder:default=tls
+	// +kubebuilder:validation:Optional
 	ServerSecretClass string `json:"serverSecretClass,omitempty"`
 
 	// todo: use secret resource
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default="chageit"
+	// +kubebuilder:default="changeit"
 	SSLStorePassword string `json:"sslStorePassword,omitempty"`
 }
 
@@ -253,12 +252,6 @@ type ConfigSpec struct {
 	// Use time.ParseDuration to parse the string
 	// +kubebuilder:validation:Optional
 	GracefulShutdownTimeout *string `json:"gracefulShutdownTimeout,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	StorageClass string `json:"storageClass,omitempty"`
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default="8Gi"
-	StorageSize string `json:"storageSize,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	ExtraEnv map[string]string `json:"extraEnv,omitempty"`

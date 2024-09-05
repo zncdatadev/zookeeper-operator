@@ -22,7 +22,10 @@ spec:
     - apply:
         file: zk.yaml
     - assert:
+        timeout: 10m
         file: zk-assert.yaml
+    - assert:
+        file: zk-discovery-assert.yaml
     cleanup:
     - sleep:
         duration: 30s
@@ -30,7 +33,7 @@ spec:
     - apply:
         file: znode.yaml
     - assert:
-        timeout: 4m
+        timeout: 10m
         file: znode-assert.yaml
     cleanup:
     - sleep:

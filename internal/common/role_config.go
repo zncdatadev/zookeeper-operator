@@ -104,7 +104,7 @@ func DefautlSercurityProperties() map[string]string {
 
 func getAffinity(clusterName string) *corev1.Affinity {
 	return NewAffinityBuilder(
-		*NewPodAffinity(map[string]string{LabelCrName: clusterName, LabelComponent: string(Server)}, false, false).Weight(70),
+		*NewPodAffinity(map[string]string{LabelCrName: clusterName, LabelComponent: string(Server)}, false, true).Weight(70),
 	).Build()
 }
 
