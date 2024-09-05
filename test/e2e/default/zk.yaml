@@ -43,12 +43,10 @@ spec:
         config:
           resources:
             cpu:
-              min: "500m"
-              max: "1500m"
+              min: "400m"
+              max: "800m"
             memory:
               limit: "2Gi"
-            storage:
-              capacity: "1Gi"
           logging:
             zookeeperCluster:
               loggers:

@@ -16,6 +16,7 @@ func NewServiceAccountReconciler(
 	return reconciler.NewGenericResourceReconciler(&client, saName, saBuilder)
 }
 
+// enable this if cluster role is provided by adminitrator, and name must be "zookeeper-clusterrole"
 func NewClusterRoleBindingReconciler(
 	client client.Client,
 	lables map[string]string,
