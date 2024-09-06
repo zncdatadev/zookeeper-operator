@@ -131,6 +131,12 @@ func (b *StatefulsetBuilder) Build(ctx context.Context) (ctrlClient.Object, erro
 	}
 	isServiceLinks := false
 	obj.Spec.Template.Spec.EnableServiceLinks = &isServiceLinks
+
+	//vector
+	if IsVectorEnable(b.mergedCfg.Config.Logging) {
+		ExtendWorkloadByVector(nil, obj, common.RoleGroupConfigMapName(b.info))
+	}
+
 	// apend pos host connection to instance status
 	b.appendClientConnections(ctx)
 	return obj, nil

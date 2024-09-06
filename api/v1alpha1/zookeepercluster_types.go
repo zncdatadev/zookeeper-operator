@@ -265,6 +265,9 @@ type ConfigSpec struct {
 
 type ContainerLoggingSpec struct {
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	EnableVectorAgent bool `json:"enableVectorAgent,omitempty"`
+	// +kubebuilder:validation:Optional
 	Zookeeper *commonsv1alpha1.LoggingConfigSpec `json:"zookeeperCluster,omitempty"`
 }
 

@@ -1,0 +1,13 @@
+apiVersion: zookeeper.zncdata.dev/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  labels:
+    app.kubernetes.io/name: zookeeperznode
+    app.kubernetes.io/instance: zookeeperznode-sample
+    app.kubernetes.io/part-of: zookeeper-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: zookeeper-operator
+  name: sample-znode
+spec:
+  clusterRef:
+    name: zookeepercluster-sample

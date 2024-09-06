@@ -1080,6 +1080,9 @@ spec:
                         type: string
                       logging:
                         properties:
+                          enableVectorAgent:
+                            default: false
+                            type: boolean
                           zookeeperCluster:
                             properties:
                               console:
@@ -10464,6 +10467,9 @@ spec:
                               type: string
                             logging:
                               properties:
+                                enableVectorAgent:
+                                  default: false
+                                  type: boolean
                                 zookeeperCluster:
                                   properties:
                                     console:
