@@ -31,6 +31,7 @@ spec:
         duration: 30s
   - try:
     - apply:
+        timeout: 6m
         file: znode.yaml
     - assert:
         timeout: 10m

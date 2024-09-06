@@ -50,9 +50,9 @@ func (r *Reconciler) RegisterResources(ctx context.Context) error {
 	}
 	//rbac
 	sa := NewServiceAccountReconciler(*r.Client, clusterLables)
-	rb := NewClusterRoleBindingReconciler(*r.Client, clusterLables)
 	r.AddResource(sa)
-	r.AddResource(rb)
+	// rb := NewClusterRoleBindingReconciler(*r.Client, clusterLables)
+	// r.AddResource(rb)
 
 	//role
 	// zkServerRole :
