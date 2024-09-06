@@ -128,9 +128,19 @@ func (n *ZookeeperConfig) MergeDefaultConfig(mergedCfg *zkv1alpha1.RoleGroupSpec
 	if config == nil {
 		config = &zkv1alpha1.ConfigSpec{}
 	}
-	// resources
-	if config.Resources == nil {
+	// mergedresources
+	if mergedresources := config.Resources; mergedresources == nil {
 		mergedCfg.Config.Resources = n.resources
+	} else {
+		if mergedCpu := mergedresources.CPU; mergedCpu == nil {
+			mergedCfg.Config.Resources.CPU = n.resources.CPU
+		}
+		if mergedMemory := mergedresources.Memory; mergedMemory == nil {
+			mergedCfg.Config.Resources.Memory = n.resources.Memory
+		}
+		if mergedStorage := mergedresources.Storage; mergedStorage == nil {
+			mergedCfg.Config.Resources.Storage = n.resources.Storage
+		}
 	}
 
 	//affinity
