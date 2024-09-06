@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
@@ -22,6 +23,7 @@ const (
 )
 
 func NewConfigMapReconciler(
+	ctx context.Context,
 	client *client.Client,
 	options *reconciler.RoleGroupInfo,
 	spec *zkv1alpha1.RoleGroupSpec,
@@ -35,17 +37,18 @@ func NewConfigMapReconciler(
 		securityPropsOverride = spec.ConfigOverrides.SercurityProps
 	}
 
-	var loggingConfigSpec *loggingv1alpha1.LoggingConfigSpec
-	if spec.Config != nil && spec.Config.Logging != nil {
-		loggingConfigSpec = spec.Config.Logging.Zookeeper
+	var containerLoggerSpec *zkv1alpha1.ContainerLoggingSpec
+	if spec.Config != nil {
+		containerLoggerSpec = spec.Config.Logging
 	}
 	namespace := client.GetOwnerNamespace()
-	cmBuilder := NewConfigMapBuilder(options, *client,
-		namespace, spec.Replicas, uint16(myidOffSet), zooCfgOverride, securityPropsOverride, zkSecurity, loggingConfigSpec)
+	cmBuilder := NewConfigMapBuilder(ctx, options, *client,
+		namespace, spec.Replicas, uint16(myidOffSet), zooCfgOverride, securityPropsOverride, zkSecurity, containerLoggerSpec)
 	return reconciler.NewGenericResourceReconciler(client, common.RoleGroupConfigMapName(options), cmBuilder)
 }
 
 func NewConfigMapBuilder(
+	ctx context.Context,
 	roleGroupInfo *reconciler.RoleGroupInfo,
 	client client.Client,
 	namespace string,
@@ -54,7 +57,7 @@ func NewConfigMapBuilder(
 	zooCfgOverride map[string]string,
 	securityPropsOverride map[string]string,
 	zkSecurity *security.ZookeeperSecurity,
-	loggingConfigSpec *loggingv1alpha1.LoggingConfigSpec,
+	containerLoggingConfigSpec *zkv1alpha1.ContainerLoggingSpec,
 ) *builder.ConfigMapBuilder {
 	configGenerator := &ConfigGenerator{
 		RoleGroupInfo:         roleGroupInfo,
@@ -68,7 +71,21 @@ func NewConfigMapBuilder(
 	buider := builder.NewConfigMapBuilder(&client, common.RoleGroupConfigMapName(roleGroupInfo), roleGroupInfo.GetLabels(), roleGroupInfo.GetAnnotations())
 	buider.AddData(map[string]string{zkv1alpha1.ZooCfgFileName: configGenerator.createZooCfgData()})
 	buider.AddData(map[string]string{zkv1alpha1.SecurityFileName: configGenerator.createSecurityPropertiesData()})
-	buider.AddData(map[string]string{LogbackConfigFileName: createLogbackXmlConfig(loggingConfigSpec)})
+	buider.AddData(map[string]string{LogbackConfigFileName: createLogbackXmlConfig(containerLoggingConfigSpec.Zookeeper)})
+	data := buider.GetData()
+	if IsVectorEnable(containerLoggingConfigSpec) {
+		cr := client.GetOwnerReference()
+		cluster := cr.(*zkv1alpha1.ZookeeperCluster)
+		ExtendConfigMapByVector(ctx, VectorConfigParams{
+			Client:        client.GetCtrlClient(),
+			ClusterConfig: cluster.Spec.ClusterConfig,
+			Namespace:     namespace,
+			InstanceName:  cr.GetName(),
+			Role:          string(common.Server),
+			GroupName:     roleGroupInfo.GetGroupName(),
+		}, data)
+		buider.SetData(data)
+	}
 	return buider
 }
 

@@ -73,7 +73,7 @@ func (r *Reconciler) RegisterResources(ctx context.Context) error {
 	return nil
 }
 
-func (r *Reconciler) RegisterResourceWithRoleGroup(_ context.Context, info *reconciler.RoleGroupInfo,
+func (r *Reconciler) RegisterResourceWithRoleGroup(ctx context.Context, info *reconciler.RoleGroupInfo,
 	roleGroupSpec any) ([]reconciler.Reconciler, error) {
 	var reconcilers []reconciler.Reconciler
 	// stopped
@@ -102,7 +102,7 @@ func (r *Reconciler) RegisterResourceWithRoleGroup(_ context.Context, info *reco
 	reconcilers = append(reconcilers, service)
 
 	// 3. cofigmap
-	configMap := NewConfigMapReconciler(r.Client, info, roleGroupSpec.(*zkv1alph1.RoleGroupSpec), zkSecurity)
+	configMap := NewConfigMapReconciler(ctx, r.Client, info, roleGroupSpec.(*zkv1alph1.RoleGroupSpec), zkSecurity)
 	reconcilers = append(reconcilers, configMap)
 
 	return reconcilers, nil

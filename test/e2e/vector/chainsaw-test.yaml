@@ -1,0 +1,45 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: default
+spec:
+  steps:
+  - try:
+    - apply:
+        file: aggregator.yaml
+    - assert:
+        file: aggregator-assert.yaml
+    - apply:
+        file: ../setup/olm.yaml
+    - assert:
+        file: ../setup/olm-assert.yaml
+  - try:
+    - apply:
+        file: ../setup/subs.yaml
+    - assert:
+        file: ../setup/subs-assert.yaml
+    - apply:
+        file: ../setup/secret.yaml
+    - assert:
+        file: ../setup/secret-assert.yaml
+  - try:
+    - apply:
+        file: zk.yaml
+    - assert:
+        timeout: 10m
+        file: zk-assert.yaml
+    - assert:
+        file: zk-discovery-assert.yaml
+    cleanup:
+    - sleep:
+        duration: 30s
+  - try:
+    - apply:
+        timeout: 6m
+        file: znode.yaml
+    - assert:
+        timeout: 10m
+        file: znode-assert.yaml
+    cleanup:
+    - sleep:
+        duration: 30s

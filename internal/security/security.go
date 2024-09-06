@@ -197,7 +197,6 @@ func (z *ZookeeperSecurity) getTLSSecretClass() string {
 	if z.serverSecretClass != "" {
 		return z.serverSecretClass
 	}
-
 	return ""
 }
 
