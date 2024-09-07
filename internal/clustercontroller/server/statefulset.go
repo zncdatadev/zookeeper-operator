@@ -134,7 +134,7 @@ func (b *StatefulsetBuilder) Build(ctx context.Context) (ctrlClient.Object, erro
 
 	//vector
 	if IsVectorEnable(b.mergedCfg.Config.Logging) {
-		ExtendWorkloadByVector(nil, obj, common.RoleGroupConfigMapName(b.info))
+		ExtendWorkloadByVector(b.GetImage(), obj, common.RoleGroupConfigMapName(b.info))
 	}
 
 	// apend pos host connection to instance status
@@ -167,6 +167,7 @@ func (b *StatefulsetBuilder) buildContainers() []corev1.Container {
 	containers := []corev1.Container{}
 	image := b.GetImageWithTag()
 	mainContainerBuilder := builder.NewContainer(b.RoleName, image).
+		SetImagePullPolicy(b.GetImage().GetPullPolicy()).
 		SetResources(b.mergedCfg.Config.Resources).
 		SetCommand([]string{"/bin/bash", "-x", "-euo", "pipefail", "-c"}).
 		SetArgs(b.getMainContainerCommanArgs()).
@@ -181,6 +182,7 @@ func (b *StatefulsetBuilder) buildContainers() []corev1.Container {
 func (b *StatefulsetBuilder) buildInitContainer() *corev1.Container {
 	image := b.GetImageWithTag()
 	prepareContainerBuilder := builder.NewContainer("prepare", image).
+		SetImagePullPolicy(b.GetImage().GetPullPolicy()).
 		SetCommand([]string{"/bin/bash", "-x", "-euo", "pipefail", "-c"}).
 		SetArgs([]string{"expr $MYID_OFFSET + $(echo $POD_NAME | sed 's/.*-//') > /kubedoop/data/myid"}).
 		AddVolumeMounts([]corev1.VolumeMount{
