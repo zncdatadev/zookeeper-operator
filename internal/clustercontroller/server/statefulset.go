@@ -165,7 +165,7 @@ func (b *StatefulsetBuilder) appendClientConnections(ctx context.Context) {
 
 func (b *StatefulsetBuilder) buildContainers() []corev1.Container {
 	containers := []corev1.Container{}
-	image := b.GetImageWithTag()
+	image := b.GetImage()
 	mainContainerBuilder := builder.NewContainer(b.RoleName, image).
 		SetImagePullPolicy(b.GetImage().GetPullPolicy()).
 		SetResources(b.mergedCfg.Config.Resources).
@@ -180,7 +180,7 @@ func (b *StatefulsetBuilder) buildContainers() []corev1.Container {
 
 // build init container
 func (b *StatefulsetBuilder) buildInitContainer() *corev1.Container {
-	image := b.GetImageWithTag()
+	image := b.GetImage()
 	prepareContainerBuilder := builder.NewContainer("prepare", image).
 		SetImagePullPolicy(b.GetImage().GetPullPolicy()).
 		SetCommand([]string{"/bin/bash", "-x", "-euo", "pipefail", "-c"}).

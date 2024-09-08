@@ -69,6 +69,10 @@ func ExtendWorkloadByVector(
 	decorator := builder.NewVectorDecorator(dep, image, zkv1alpha1.LogDirName, zkv1alpha1.ConfigDirName, vectorConfigMapName)
 	err := decorator.Decorate()
 	if err != nil {
+		vectorLogger.Error(
+			errors.Wrap(err, "error occurred while decorating the StatefulSet with vector configuration"),
+			"failed to decorate StatefulSet", "statefulSetName", dep.Name, "namespace", dep.Namespace,
+		)
 		return
 	}
 
