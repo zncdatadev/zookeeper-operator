@@ -6,6 +6,7 @@ import (
 	"emperror.dev/errors"
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/productlogging"
+	"github.com/zncdatadev/operator-go/pkg/util"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -55,19 +56,23 @@ func ExtendConfigMapByVector(ctx context.Context, params VectorConfigParams, dat
 	}
 }
 
+// ExtendWorkloadByVector extends a StatefulSet by adding a vector container, a vector config volume and a vector data volume.
+// It also mounts the vector data volume to the vector container.
+// The vector container is added to the StatefulSet's template.
+// The vector config volume is added to the StatefulSet's template spec volumes.
+// The vector data volume is added to the StatefulSet's template spec volumes.
+// The vector data volume is mounted to the vector container at /kubedoop/vector/var.
 func ExtendWorkloadByVector(
-	logProvider []string,
+	image *util.Image,
 	dep *appsv1.StatefulSet,
 	vectorConfigMapName string) {
-	decorator := builder.VectorDecorator{
-		WorkloadObject:           dep,
-		LogVolumeName:            zkv1alpha1.LogDirName,
-		VectorConfigVolumeName:   zkv1alpha1.ConfigDirName,
-		VectorConfigMapName:      vectorConfigMapName,
-		LogProviderContainerName: logProvider,
-	}
+	decorator := builder.NewVectorDecorator(dep, image, zkv1alpha1.LogDirName, zkv1alpha1.ConfigDirName, vectorConfigMapName)
 	err := decorator.Decorate()
 	if err != nil {
+		vectorLogger.Error(
+			errors.Wrap(err, "error occurred while decorating the StatefulSet with vector configuration"),
+			"failed to decorate StatefulSet", "statefulSetName", dep.Name, "namespace", dep.Namespace,
+		)
 		return
 	}
 

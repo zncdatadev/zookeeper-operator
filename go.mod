@@ -3,20 +3,19 @@ module github.com/zncdatadev/zookeeper-operator
 go 1.23.0
 
 require (
+	emperror.dev/errors v0.8.1
 	github.com/cisco-open/k8s-objectmatcher v1.10.0 // indirect
 	github.com/go-logr/logr v1.4.2
 	github.com/onsi/ginkgo/v2 v2.20.2
 	github.com/onsi/gomega v1.34.2
 	github.com/samuel/go-zookeeper v0.0.0-20201211165307-7117e9ea2414
-	github.com/zncdatadev/operator-go v0.9.1
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
 	k8s.io/api v0.31.0
 	k8s.io/apimachinery v0.31.0
 	k8s.io/client-go v0.31.0
 	sigs.k8s.io/controller-runtime v0.19.0
+	github.com/zncdatadev/operator-go v0.9.2
 )
-
-require emperror.dev/errors v0.8.1
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect

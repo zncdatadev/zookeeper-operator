@@ -41,12 +41,16 @@ func TransformImage(imageSpec *ImageSpec) *util.Image {
 	if imageSpec == nil {
 		return util.NewImage(DefaultProductName, DefaultPlatformVersion, DefaultProductVersion)
 	}
+	var pullPolicy corev1.PullPolicy = corev1.PullIfNotPresent
+	if imageSpec.PullPolicy != nil {
+		pullPolicy = *imageSpec.PullPolicy
+	}
 	return &util.Image{
 		Custom:          imageSpec.Custom,
 		Repo:            imageSpec.Repo,
 		PlatformVersion: imageSpec.PlatformVersion,
 		ProductVersion:  imageSpec.ProductVersion,
-		PullPolicy:      imageSpec.PullPolicy,
+		PullPolicy:      pullPolicy,
 		PullSecretName:  imageSpec.PullSecretName,
 		ProductName:     DefaultProductName,
 	}
