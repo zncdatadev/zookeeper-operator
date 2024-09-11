@@ -39,9 +39,9 @@ spec:
   clusterConfig:
     listenerClass: external-unstable
     vectorAggregatorConfigMapName: vector-aggregator-discovery
-    # tls:
-    #   quorumSecretClass: tls
-    #   serverSecretClass: tls
+    tls:
+      quorumSecretClass: tls
+      serverSecretClass: tls
   server:
     roleGroups:
       default:
