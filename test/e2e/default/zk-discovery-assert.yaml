@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: zookeepercluster-sample
+  name: zk
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: zookeepercluster-sample-nodeport
+  name: zk-nodeport

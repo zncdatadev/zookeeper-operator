@@ -1,13 +1,7 @@
 apiVersion: zookeeper.zncdata.dev/v1alpha1
 kind: ZookeeperCluster
 metadata:
-  labels:
-    app.kubernetes.io/name: zookeepercluster
-    app.kubernetes.io/instance: zookeepercluster-sample
-    app.kubernetes.io/part-of: zookeeper-operator
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: zookeeper-operator
-  name: zookeepercluster-sample
+  name: zk
 spec:
   clusterOperation:
     stopped: false
