@@ -22,19 +22,30 @@ spec:
     - apply:
         file: zk.yaml
     - assert:
-        timeout: 6m
         file: zk-assert.yaml
     - assert:
         file: zk-discovery-assert.yaml
+    catch:
+      - sleep:
+          duration: 5s
+      - podLogs:
+          selector: app.kubernetes.io/instance=secretcsi-csi
+          container: csi-secrets
+          tail: -1
+      - describe:
+          apiVersion: v1
+          kind: Pod
+          selector: app.kubernetes.io/instance=zk
+      - podLogs:
+          selector: app.kubernetes.io/instance=zk
+          tail: -1
     cleanup:
     - sleep:
         duration: 30s
   - try:
     - apply:
-        timeout: 6m
         file: znode.yaml
     - assert:
-        timeout: 6m
         file: znode-assert.yaml
     cleanup:
     - sleep:

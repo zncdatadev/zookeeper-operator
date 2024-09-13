@@ -1,45 +1,19 @@
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: zookeeper-clusterrole
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - secrets
-  - serviceaccounts
-  verbs:
-  - get
-- apiGroups:
-  - events.k8s.io
-  resources:
-  - events
-  verbs:
-  - create
----
 apiVersion: zookeeper.zncdata.dev/v1alpha1
 kind: ZookeeperCluster
 metadata:
-  labels:
-    app.kubernetes.io/name: zookeepercluster
-    app.kubernetes.io/instance: zookeepercluster-sample
-    app.kubernetes.io/part-of: zookeeper-operator
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: zookeeper-operator
-  name: zookeepercluster-sample
+  name: zk
 spec:
   clusterOperation:
     stopped: false
   clusterConfig:
     listenerClass: external-unstable
-    # tls:
-    #   quorumSecretClass: tls
-    #   serverSecretClass: tls
+    tls:
+      quorumSecretClass: tls
+      serverSecretClass: tls
   server:
     roleGroups:
       default:
-        replicas: 2
+        replicas: 3
         config:
           resources:
             cpu:

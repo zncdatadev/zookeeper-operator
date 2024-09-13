@@ -5,10 +5,12 @@ metadata:
 spec:
   timeouts:
     apply: 120s
-    assert: 600s
+    assert: 300s
     cleanup: 120s
     delete: 120s
     error: 10s
     exec: 45s
   skipDelete: false
   failFast: true
+  parallel: 1 # use 1 concurrent to test, to voide multiple csi driver conflict
+  forceTerminationGracePeriod: 10s
