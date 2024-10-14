@@ -46,3 +46,5 @@ cover.out
 
 # ai code local
 .codiumai.toml
+
+**/.cr-release-packages/*
