@@ -110,7 +110,7 @@ spec:
                 properties:
                   custom:
                     type: string
-                  platformVersion:
+                  kubedoopVersion:
                     default: 0.0.0-dev
                     type: string
                   productVersion:
