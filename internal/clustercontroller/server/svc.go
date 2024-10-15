@@ -10,6 +10,7 @@ import (
 
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/client"
+	"github.com/zncdatadev/operator-go/pkg/constants"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 )
 
@@ -47,17 +48,24 @@ func NewServiceReconciler(
 		},
 	}
 
-	var serviceType corev1.ServiceType = corev1.ServiceTypeClusterIP
+	// :bug: should fix this issue in operator-go
+	// when service type is nodeport, cluster ip should not be "None", so when listener class is external-unstable, headless should be false
+	headless := true
+	if listenerClass == string(constants.ExternalUnstable) {
+		headless = false
+	}
 
 	svcBuilder := &ServiceBuilder{
 		BaseServiceBuilder: *builder.NewServiceBuilder(
 			client,
 			option.GetFullName(),
-			option.GetLabels(),
-			option.GetAnnotations(),
 			ports,
-			&serviceType,
-			true, // as workload is statefulset, so the service is headless
+			func(s *builder.ServiceBuilderOption) {
+				s.Labels = option.GetLabels()
+				s.Annotations = option.GetAnnotations()
+				s.Headless = headless
+				s.ListenerClass = constants.ListenerClass(listenerClass)
+			},
 		),
 	}
 

@@ -198,7 +198,7 @@ func (n *NodePortDiscoveryBuilder) GetHosts(ctx context.Context) ([]string, erro
 			Namespace: ns,
 		},
 	}
-	err := cli.Get(ctx, svc)
+	err := cli.GetWithObject(ctx, svc)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +210,7 @@ func (n *NodePortDiscoveryBuilder) GetHosts(ctx context.Context) ([]string, erro
 			Namespace: ns,
 		},
 	}
-	err = cli.Get(ctx, endpoints)
+	err = cli.GetWithObject(ctx, endpoints)
 	if err != nil {
 		return nil, err
 	}

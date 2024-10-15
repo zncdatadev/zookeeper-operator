@@ -48,7 +48,7 @@ func TransformImage(imageSpec *ImageSpec) *util.Image {
 	return &util.Image{
 		Custom:          imageSpec.Custom,
 		Repo:            imageSpec.Repo,
-		PlatformVersion: imageSpec.PlatformVersion,
+		KubedoopVersion: imageSpec.PlatformVersion,
 		ProductVersion:  imageSpec.ProductVersion,
 		PullPolicy:      pullPolicy,
 		PullSecretName:  imageSpec.PullSecretName,

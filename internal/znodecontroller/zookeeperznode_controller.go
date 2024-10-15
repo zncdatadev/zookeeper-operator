@@ -115,7 +115,7 @@ func (r *ZookeeperZnodeReconciler) getClusterInstance(znode *zkv1alpha1.Zookeepe
 		},
 	}
 	resourceClient := client.NewClient(r.Client, clusterInstance)
-	err := resourceClient.Get(ctx, clusterInstance)
+	err := resourceClient.GetWithObject(ctx, clusterInstance)
 	if err != nil {
 		return nil, ErrZookeeperCluster
 	}
