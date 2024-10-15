@@ -3,6 +3,7 @@ package cluster
 import (
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/client"
+	"github.com/zncdatadev/operator-go/pkg/constants"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
@@ -22,24 +23,16 @@ func NewClusterServiceReconciler(
 		},
 	}
 
-	var serviceType corev1.ServiceType
-	switch listenerClass {
-	case string(zkv1alpha1.ClusterInternal):
-		serviceType = corev1.ServiceTypeClusterIP
-	case string(zkv1alpha1.ExternalUnstable):
-		serviceType = corev1.ServiceTypeNodePort
-	default:
-		serviceType = corev1.ServiceTypeClusterIP
-	}
-
 	svcBuilder := builder.NewServiceBuilder(
 		client,
 		option.GetFullName(),
-		option.GetLabels(),
-		option.GetAnnotations(),
 		ports,
-		&serviceType,
-		false,
+		func(s *builder.ServiceBuilderOption) {
+			s.Labels = option.GetLabels()
+			s.Annotations = option.GetAnnotations()
+			s.Headless = false
+			s.ListenerClass = constants.ListenerClass(listenerClass)
+		},
 	)
 
 	return &reconciler.Service{

@@ -38,8 +38,8 @@ func NewReconciler(
 	return &Reconciler{
 		BaseRoleReconciler: *reconciler.NewBaseRoleReconciler(
 			client,
+			clusterOperation.Stopped,
 			roleInfo,
-			clusterOperation,
 			spec,
 		),
 		Image:         image,
@@ -76,11 +76,6 @@ func (r *Reconciler) RegisterResources(ctx context.Context) error {
 func (r *Reconciler) RegisterResourceWithRoleGroup(ctx context.Context, info *reconciler.RoleGroupInfo,
 	roleGroupSpec any) ([]reconciler.Reconciler, error) {
 	var reconcilers []reconciler.Reconciler
-	// stopped
-	stopped := false
-	if r.ClusterOperation != nil && r.ClusterOperation.Stopped {
-		stopped = true
-	}
 	// security
 	zkSecurity, err := security.NewZookeeperSecurity(r.ClusterConfig)
 	if err != nil {
@@ -89,7 +84,7 @@ func (r *Reconciler) RegisterResourceWithRoleGroup(ctx context.Context, info *re
 	}
 
 	// 1. statefulset
-	statefulSet, err := NewStatefulsetReconciler(r.Client, r.ClusterConfig, info, r.Image, stopped, roleGroupSpec.(*zkv1alph1.RoleGroupSpec), zkSecurity)
+	statefulSet, err := NewStatefulsetReconciler(r.Client, r.ClusterConfig, info, r.Image, r.ClusterStopped, roleGroupSpec.(*zkv1alph1.RoleGroupSpec), zkSecurity)
 	if err != nil {
 		logger.V(1).Info("failed to create statefulset reconciler", "error", err)
 		return nil, err
