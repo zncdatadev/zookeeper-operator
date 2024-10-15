@@ -10,7 +10,7 @@ const (
 	DefaultRepository      = "quay.io/zncdatadev"
 	DefaultProductVersion  = "3.9.2"
 	DefaultProductName     = "zookeeper"
-	DefaultPlatformVersion = "0.0.0-dev"
+	DefaultKubedoopVersion = "0.0.0-dev"
 )
 
 type ImageSpec struct {
@@ -23,7 +23,7 @@ type ImageSpec struct {
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default="0.0.0-dev"
-	PlatformVersion string `json:"platformVersion,omitempty"`
+	KubedoopVersion string `json:"kubedoopVersion,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default="3.9.2"
@@ -39,7 +39,7 @@ type ImageSpec struct {
 
 func TransformImage(imageSpec *ImageSpec) *util.Image {
 	if imageSpec == nil {
-		return util.NewImage(DefaultProductName, DefaultPlatformVersion, DefaultProductVersion)
+		return util.NewImage(DefaultProductName, DefaultKubedoopVersion, DefaultProductVersion)
 	}
 	var pullPolicy corev1.PullPolicy = corev1.PullIfNotPresent
 	if imageSpec.PullPolicy != nil {
@@ -48,7 +48,7 @@ func TransformImage(imageSpec *ImageSpec) *util.Image {
 	return &util.Image{
 		Custom:          imageSpec.Custom,
 		Repo:            imageSpec.Repo,
-		KubedoopVersion: imageSpec.PlatformVersion,
+		KubedoopVersion: imageSpec.KubedoopVersion,
 		ProductVersion:  imageSpec.ProductVersion,
 		PullPolicy:      pullPolicy,
 		PullSecretName:  imageSpec.PullSecretName,
