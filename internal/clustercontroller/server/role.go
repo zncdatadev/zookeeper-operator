@@ -34,11 +34,14 @@ func NewReconciler(
 	image *util.Image,
 	spec *zkv1alph1.ServerSpec,
 ) *Reconciler {
-
+	clusterStopped := false
+	if clusterOperation != nil {
+		clusterStopped = clusterOperation.Stopped
+	}
 	return &Reconciler{
 		BaseRoleReconciler: *reconciler.NewBaseRoleReconciler(
 			client,
-			clusterOperation.Stopped,
+			clusterStopped,
 			roleInfo,
 			spec,
 		),
