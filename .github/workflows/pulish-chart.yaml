@@ -36,7 +36,8 @@ jobs:
       uses: azure/setup-helm@v4.2.0
     - name: Check chart version
       run: |
-        chart_version=$(yq eval '.version' deploy/helm/commons-operator/Chart.yaml)
+        REPO_NAME=$(basename ${{ github.repository }})
+        chart_version=$(yq eval '.version' deploy/helm/$REPO_NAME/Chart.yaml)      
         if [ "$chart_version" != "$CHART_VERSION" ]; then
           echo "Chart version is not $CHART_VERSION, please update it to $CHART_VERSION"
           exit 1
