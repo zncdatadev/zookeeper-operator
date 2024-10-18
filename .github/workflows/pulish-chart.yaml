@@ -1,0 +1,65 @@
+# Deploy a dev version snapshot of helm chart to GitHub releases, the target version is 0.0.0-dev.
+# When re-deploy, the previous release will be replaced.
+
+name: Publish helm chart
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'deploy/helm/**'
+
+env:
+  CHART_VERSION: 0.0.0-dev
+
+permissions:
+  contents: read
+
+
+jobs:
+  upload-helm-chart:
+    if: ${{ github.repository_owner == 'zncdatadev' }}
+    permissions:
+      contents: write  # for helm/chart-releaser-action to push chart release and create a release
+    name: Publish helm chart
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - name: Configure Git
+      run: |
+        git config user.name "$GITHUB_ACTOR"
+        git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+    - name: Helm tool installer
+      uses: azure/setup-helm@v4.2.0
+    - name: Check chart version
+      run: |
+        chart_version=$(yq eval '.version' deploy/helm/commons-operator/Chart.yaml)
+        if [ "$chart_version" != "$CHART_VERSION" ]; then
+          echo "Chart version is not $CHART_VERSION, please update it to $CHART_VERSION"
+          exit 1
+        fi
+    - name: Delete existing release if exists
+      run: |
+        RELEASE_NAME=helm-chart-$CHART_VERSION
+        release_id=$(gh api -X GET "repos/${{ github.repository }}/releases" | jq -r ".[] | select(.tag_name==\"$RELEASE_NAME\") | .id")
+        if [ -n "$release_id" ]; then
+          gh api -X DELETE "repos/${{ github.repository }}/releases/$release_id"
+          echo "Deleted existing release with ID $release_id"
+        else
+          echo "No existing release found for version $CHART_VERSION"
+        fi
+    # TODO: Sign the chart
+    - name: Run chart-releaser
+      uses: helm/chart-releaser-action@v1.6.0
+      with:
+        # set paramers to chart-releaser-action, it check chart update with git diff
+        charts_dir: deploy/helm
+        mark_as_latest: false
+      env:
+        # set directly parameters to chart-releaser cli
+        CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        CR_INDEX_PATH: "./index.yaml"
+        CR_RELEASE_NAME_TEMPLATE: helm-chart-{{ .Version }} # Go template for computing release names, using chart metadata (default "{{ .Name }}-{{ .Version }}")
