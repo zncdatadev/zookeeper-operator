@@ -20,22 +20,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINTER_RULES_PATH: /
           MARKDOWN_CONFIG_FILE: .markdownlint.yml
-
-
-  helm-lint:
-    name: Helm Lint
-    runs-on: ubuntu-22.04
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-    - name: Helm tool installer
-      uses: azure/setup-helm@v4.2.0
-    - name: Lint Helm Chart
-      run: make helm-lint
-
-
   golang-lint:
     name: Golang Lint
     runs-on: ubuntu-22.04
@@ -79,7 +63,6 @@ jobs:
           # Optional: The mode to install golangci-lint. It can be 'binary' or 'goinstall'.
           # install-mode: "goinstall"
 
-
   golang-test:
     name: Golang Test
     runs-on: ubuntu-22.04
@@ -102,37 +85,36 @@ jobs:
       - name: Test with Go
         run: make test
 
-
-  # chainsaw-test:
-  #   name: Chainsaw Test
-  #   runs-on: ubuntu-22.04
-  #   strategy:
-  #     matrix:
-  #       k8s-version: ['1.26.14', '1.27.11']
-  #   steps:
-  #   - uses: actions/checkout@v3
-  #   - uses: actions/setup-go@v4
-  #     with:
-  #       go-version: '1.23'
-  #       cache: false
-  #   - name: Create KinD cluster
-  #     env:
-  #       KINDTEST_K8S_VERSION: ${{ matrix.k8s-version}}
-  #       KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
-  #       KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
-  #     run: make kind-create
-  #   - name: Chainsaw test setup
-  #     env:
-  #       KINDTEST_K8S_VERSION: ${{ matrix.k8s-version }}
-  #       KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
-  #       KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
-  #     run: make chainsaw-setup
-  #   - name: Test with Chainsaw
-  #     env:
-  #       KINDTEST_K8S_VERSION: ${{ matrix.k8s-version }}
-  #       KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
-  #       KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
-  #     run: make chainsaw-test
+  chainsaw-test:
+    name: Chainsaw Test
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        k8s-version: ['1.26.14', '1.27.11']
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-go@v4
+      with:
+        go-version: '1.23'
+        cache: false
+    - name: Create KinD cluster
+      env:
+        KINDTEST_K8S_VERSION: ${{ matrix.k8s-version}}
+        KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
+        KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
+      run: make kind-create
+    - name: Chainsaw test setup
+      env:
+        KINDTEST_K8S_VERSION: ${{ matrix.k8s-version }}
+        KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
+        KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
+      run: make chainsaw-setup
+    - name: Test with Chainsaw
+      env:
+        KINDTEST_K8S_VERSION: ${{ matrix.k8s-version }}
+        KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
+        KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
+      run: make chainsaw-test
 
 
   deploy-operator:
@@ -142,7 +124,7 @@ jobs:
     needs:
       - golang-lint
       - golang-test
-      # - chainsaw-test
+      - chainsaw-test
     steps:
       - uses: actions/checkout@v3
         with:

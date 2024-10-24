@@ -29,11 +29,6 @@ metadata:
     app.kubernetes.io/created-by: zookeeper-operator
   name: zookeepercluster-sample
 spec:
-  image:
-    platformVersion: "0.0.0-dev"
-    productVersion: "3.8.4"
-    pullPolicy: IfNotPresent
-    repository: quay.io/zncdatadev
   clusterOperation:
     stopped: false
   clusterConfig:
