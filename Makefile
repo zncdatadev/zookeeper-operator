@@ -325,6 +325,7 @@ catalog-buildx: ## Build and push a catalog image for cross-platform support
 	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) -f catalog.Dockerfile --tag ${CATALOG_IMG} .
 	- $(CONTAINER_TOOL) buildx rm project-v3-builder
 
+##@ E2E
 
 ##@ helm
 
@@ -347,31 +348,30 @@ HELM = $(shell which helm)
 endif
 endif
 
-.PHONY: helm-update
-helm-chart: helm manifests kustomize ## Create a helm chart.
-	$(KUSTOMIZE) build config/crd > deploy/helm/$(PROJECT_NAME)/crds/crds.yaml
+HELM_DEPENDS ?= listener-operator secret-operator
+TEST_NAMESPACE = kubedoop-operators
 
-.PHONY: helm-lint
-helm-lint: helm-chart ## Lint the helm chart.
-	$(HELM) lint deploy/helm/$(PROJECT_NAME)
+.PHONY: helm-install-depends
+helm-install-depends: ## Install the helm chart depends.
+	$(HELM) repo add kubedoop https://zncdatadev.github.io/kubedoop-helm-charts/
+ifneq ($(strip $(HELM_DEPENDS)),)
+	for dep in $(HELM_DEPENDS); do \
+		$(HELM) upgrade --install --create-namespace --namespace $(TEST_NAMESPACE) --wait $$dep kubedoop/$$dep --version $(VERSION); \
+	done
+endif
 
 .PHONY: helm-install
-helm-install: helm-chart ## Install the helm chart.
-	$(HELM) upgrade --install --create-namespace --namespace kubedata-operators --wait $(PROJECT_NAME) deploy/helm/$(PROJECT_NAME)
-	# TODO ADD Dependencies
+helm-install: helm-install-depends ## Install the helm chart.
+	$(HELM) upgrade --install --create-namespace --namespace $(TEST_NAMESPACE) --wait $(PROJECT_NAME) kubedoop/$(PROJECT_NAME) --version $(VERSION)
 
 .PHONY: helm-uninstall
 helm-uninstall: ## Uninstall the helm chart.
-	$(HELM) uninstall --namespace kubedata-operators $(PROJECT_NAME)
-	kubectl delete -f deploy/helm/$(PROJECT_NAME)/crds/crds.yaml
-
-
-##@ E2E
+	$(HELM) uninstall --namespace $(TEST_NAMESPACE) $(PROJECT_NAME)
 
 # kind
 KIND_VERSION ?= v0.23.0
 
-KINDTEST_K8S_VERSION ?= 1.27.11
+KINDTEST_K8S_VERSION ?= 1.26.14
 
 KIND_IMAGE ?= kindest/node:v${KINDTEST_K8S_VERSION}
 
@@ -409,9 +409,9 @@ kind-delete: kind ## Delete a kind cluster.
 CHAINSAW_VERSION ?= v0.2.8
 CHAINSAW = $(LOCALBIN)/chainsaw
 
-# Use `grep 0.2.6 > /dev/null` instead of `grep -q 0.2.6`. It will not be able to determine the version number, 
+# Use `grep 0.2.6 > /dev/null` instead of `grep -q 0.2.6`. It will not be able to determine the version number,
 # although the execution in the shell is normal, but in the makefile does fail to understand the mechanism in the makefile
-# The operation ends by using `touch` to change the time of the file so that its timestamp is further back than the directory, 
+# The operation ends by using `touch` to change the time of the file so that its timestamp is further back than the directory,
 # so that no subsequent logic is performed after the `chainsaw` check is successful in relying on the `$(CHAINSAW)` target.
 .PHONY: chainsaw
 chainsaw: $(CHAINSAW) ## Download chainsaw locally if necessary.
