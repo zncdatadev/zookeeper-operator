@@ -43,7 +43,7 @@ func NewStatefulsetReconciler(
 			Annotations:   roleGroupInfo.GetAnnotations(),
 		},
 		PodOverrides:     spec.PodOverrides,
-		CommandOverrides: spec.CommandOverrides,
+		CommandOverrides: spec.CliOverrides,
 		EnvOverrides:     spec.EnvOverrides,
 	}
 
