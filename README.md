@@ -1,4 +1,4 @@
-# zookeeper-operator
+# Kubedoop Operator for Apache Zookeeper
 
 [![Build](https://github.com/zncdatadev/zookeeper-operator/actions/workflows/main.yml/badge.svg)](https://github.com/zncdatadev/zookeeper-operator/actions/workflows/main.yml)
 [![LICENSE](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -46,14 +46,15 @@ kubectl apply -f config/samples
 
 Kubedoop operators:
 
-- [Kubedoop operator for Apache Zookeeper](https://github.com/zncdatadev/zookeeper-operator)
-- [Kubedoop operator for Apache Hadoop hdfs](https://github.com/zncdatadev/hdfs-operator)
-- [Kubedoop operator for Apache Hive](https://github.com/zncdatadev/hive-operator)
-- [Kubedoop operator for Apache Spark](https://github.com/zncdatadev/spark-k8s-operator)
-- [Kubedoop operator for Apache Kafka](https://github.com/zncdatadev/kafka-operator)
-- [Kubedoop operator for Apache Hive](https://github.com/zncdatadev/hive-operator)
-- [Kubedoop operator for Apache Superset](https://github.com/zncdatadev/superset-operator)
-- [Kubedoop operator for Apache DolphinScheduler](https://github.com/zncdatadev/dolphinscheduler-operator)
+- [Kubedoop Operator for Apache DolphinScheduler](https://github.com/zncdatadev/dolphinscheduler-operator)
+- [Kubedoop Operator for Apache Hadoop Hdfs](https://github.com/zncdatadev/hdfs-operator)
+- [Kubedoop Operator for Apache HBase](https://github.com/zncdatadev/hbase-operator)
+- [Kubedoop Operator for Apache Hive](https://github.com/zncdatadev/hive-operator)
+- [Kubedoop Operator for Apache Kafka](https://github.com/zncdatadev/kafka-operator)
+- [Kubedoop Operator for Apache Spark](https://github.com/zncdatadev/spark-k8s-operator)
+- [Kubedoop Operator for Apache Superset](https://github.com/zncdatadev/superset-operator)
+- [Kubedoop Operator for Trino](https://github.com/zncdatadev/trino-operator)
+- [Kubedoop Operator for Apache Zookeeper](https://github.com/zncdatadev/zookeeper-operator)
 
 Kubedoop built-in operators:
 
