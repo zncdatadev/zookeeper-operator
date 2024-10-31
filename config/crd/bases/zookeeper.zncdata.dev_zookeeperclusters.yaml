@@ -129,7 +129,7 @@ spec:
                 type: object
               server:
                 properties:
-                  commandOverrides:
+                  cliOverrides:
                     items:
                       type: string
                     type: array
@@ -9505,7 +9505,7 @@ spec:
                   roleGroups:
                     additionalProperties:
                       properties:
-                        commandOverrides:
+                        cliOverrides:
                           items:
                             type: string
                           type: array
