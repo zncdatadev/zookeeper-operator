@@ -15,6 +15,7 @@ import (
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
 	"github.com/zncdatadev/zookeeper-operator/internal/util"
 	"golang.org/x/exp/maps"
+	"k8s.io/utils/ptr"
 )
 
 const (
@@ -160,7 +161,10 @@ func createLogbackXmlConfig(containerLoggerSpec *zkv1alpha1.ContainerLoggingSpec
 		loggingConfigSpec = containerLoggerSpec.Zookeeper
 	}
 	logfileName := fmt.Sprintf("%s.log4j.xml", common.ZkServerContainerName)
-	logbackGenerator, _ := productlogging.NewConfigGenerator(loggingConfigSpec, common.ZkServerContainerName, ConsoleConversionPattern, nil, logfileName, productlogging.LogTypeLogback)
+	opts := func(opt *productlogging.ConfigGeneratorOption) {
+		opt.ConsoleHandlerFormatter = ptr.To(ConsoleConversionPattern)
+	}
+	logbackGenerator, _ := productlogging.NewConfigGenerator(loggingConfigSpec, common.ZkServerContainerName, logfileName, productlogging.LogTypeLogback, opts)
 	xml, err := logbackGenerator.Content()
 	if err != nil {
 		panic(err)

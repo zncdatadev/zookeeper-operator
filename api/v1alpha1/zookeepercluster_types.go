@@ -191,7 +191,7 @@ type ServerSpec struct {
 	RoleGroups map[string]RoleGroupSpec `json:"roleGroups,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	PodDisruptionBudget *commonsv1alpha1.PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
+	RoleConfig *commonsv1alpha1.RoleConfigSpec `json:"roleConfig,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	CliOverrides []string `json:"cliOverrides,omitempty"`
@@ -211,7 +211,7 @@ type RoleGroupSpec struct {
 	// +kubebuilder:default:=1
 	Replicas int32 `json:"replicas,omitempty"`
 
-	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Optional
 	Config *ConfigSpec `json:"config,omitempty"`
 
 	// +kubebuilder:validation:Optional
