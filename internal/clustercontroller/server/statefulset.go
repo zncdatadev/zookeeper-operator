@@ -35,16 +35,16 @@ func NewStatefulsetReconciler(
 ) (reconciler.ResourceReconciler[builder.StatefulSetBuilder], error) {
 
 	options := builder.WorkloadOptions{
-		Options: builder.Options{
+		Option: builder.Option{
 			ClusterName:   roleGroupInfo.GetClusterName(),
 			RoleName:      roleGroupInfo.GetRoleName(),
 			RoleGroupName: roleGroupInfo.GetGroupName(),
 			Labels:        roleGroupInfo.GetLabels(),
 			Annotations:   roleGroupInfo.GetAnnotations(),
 		},
-		PodOverrides:     spec.PodOverrides,
-		CommandOverrides: spec.CliOverrides,
-		EnvOverrides:     spec.EnvOverrides,
+		PodOverrides: spec.PodOverrides,
+		CliOverrides: spec.CliOverrides,
+		EnvOverrides: spec.EnvOverrides,
 	}
 
 	if spec.Config != nil {

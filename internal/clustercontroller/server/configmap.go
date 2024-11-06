@@ -71,7 +71,7 @@ func NewConfigMapBuilder(
 	buider := builder.NewConfigMapBuilder(&client, common.RoleGroupConfigMapName(roleGroupInfo), roleGroupInfo.GetLabels(), roleGroupInfo.GetAnnotations())
 	buider.AddData(map[string]string{zkv1alpha1.ZooCfgFileName: configGenerator.createZooCfgData()})
 	buider.AddData(map[string]string{zkv1alpha1.SecurityFileName: configGenerator.createSecurityPropertiesData()})
-	buider.AddData(map[string]string{LogbackConfigFileName: createLogbackXmlConfig(containerLoggingConfigSpec.Zookeeper)})
+	buider.AddData(map[string]string{LogbackConfigFileName: createLogbackXmlConfig(containerLoggingConfigSpec)})
 	data := buider.GetData()
 	if IsVectorEnable(containerLoggingConfigSpec) {
 		cr := client.GetOwnerReference()
@@ -154,11 +154,16 @@ func (c *ConfigGenerator) configOverrides(zooCfg map[string]string) map[string]s
 	return zooCfg
 }
 
-func createLogbackXmlConfig(
-	loggingConfigSpec *loggingv1alpha1.LoggingConfigSpec,
-) string {
+func createLogbackXmlConfig(containerLoggerSpec *zkv1alpha1.ContainerLoggingSpec) string {
+	var loggingConfigSpec *loggingv1alpha1.LoggingConfigSpec
+	if containerLoggerSpec != nil {
+		loggingConfigSpec = containerLoggerSpec.Zookeeper
+	}
 	logfileName := fmt.Sprintf("%s.log4j.xml", common.ZkServerContainerName)
-	logbackGenerator := productlogging.NewLogbackConfigGenerator(loggingConfigSpec, common.ZkServerContainerName,
-		ConsoleConversionPattern, nil, logfileName, LogbackConfigFileName)
-	return logbackGenerator.Generate()
+	logbackGenerator, _ := productlogging.NewConfigGenerator(loggingConfigSpec, common.ZkServerContainerName, ConsoleConversionPattern, nil, logfileName, productlogging.LogTypeLogback)
+	xml, err := logbackGenerator.Content()
+	if err != nil {
+		panic(err)
+	}
+	return xml
 }
