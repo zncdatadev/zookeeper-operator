@@ -1,0 +1,14 @@
+apiVersion: zookeeper.zncdata.dev/v1alpha1
+kind: ZookeeperCluster
+metadata:
+  name: zk
+spec:
+  clusterConfig:
+    listenerClass: cluster-internal
+  server:
+    roleConfig:
+      podDisruptionBudget:
+        maxUnavailable: 2
+    roleGroups:
+      default:
+        replicas: 3
