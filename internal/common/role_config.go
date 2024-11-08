@@ -37,11 +37,11 @@ type ZookeeperConfig struct {
 type GeneralNodeConfig struct {
 	Affinity *corev1.Affinity
 
-	gracefulShutdownTimeoutSeconds time.Duration
+	gracefulShutdownTimeout time.Duration
 }
 
 func (G *GeneralNodeConfig) GetgracefulShutdownTimeoutSeconds() *string {
-	seconds := G.gracefulShutdownTimeoutSeconds.Seconds()
+	seconds := G.gracefulShutdownTimeout.Seconds()
 	v := strconv.Itoa(int(seconds)) + "s"
 	return &v
 }
@@ -71,8 +71,8 @@ func DefaultServerConfig(clusterName string) ZookeeperConfig {
 		myidOffset: func() int { v := DefaultMyidOffset; return v }(),
 		resources:  defaultResources(),
 		common: &GeneralNodeConfig{
-			Affinity:                       getAffinity(clusterName),
-			gracefulShutdownTimeoutSeconds: DefaultServerGrace * time.Second,
+			Affinity:                getAffinity(clusterName),
+			gracefulShutdownTimeout: DefaultServerGrace * time.Second,
 		},
 		securityProps: DefautlSercurityProperties(),
 	}
@@ -126,10 +126,10 @@ func (n *ZookeeperConfig) MergeDefaultConfig(mergedCfg *zkv1alpha1.RoleGroupSpec
 	config := mergedCfg.Config
 
 	if config == nil {
-		config = &zkv1alpha1.ConfigSpec{}
+		mergedCfg.Config = &zkv1alpha1.ConfigSpec{}
 	}
 	// mergedresources
-	if mergedresources := config.Resources; mergedresources == nil {
+	if mergedresources := mergedCfg.Config.Resources; mergedresources == nil {
 		mergedCfg.Config.Resources = n.resources
 	} else {
 		if mergedCpu := mergedresources.CPU; mergedCpu == nil {
@@ -144,12 +144,12 @@ func (n *ZookeeperConfig) MergeDefaultConfig(mergedCfg *zkv1alpha1.RoleGroupSpec
 	}
 
 	//affinity
-	if config.Affinity == nil {
+	if mergedCfg.Config.Affinity == nil {
 		mergedCfg.Config.Affinity = n.common.Affinity
 	}
 
 	// gracefulShutdownTimeoutSeconds
-	if config.GracefulShutdownTimeout == nil {
+	if mergedCfg.Config.GracefulShutdownTimeout == nil {
 		mergedCfg.Config.GracefulShutdownTimeout = n.common.GetgracefulShutdownTimeoutSeconds()
 	}
 
@@ -180,6 +180,7 @@ func (n *ZookeeperConfig) MergeDefaultConfig(mergedCfg *zkv1alpha1.RoleGroupSpec
 	// config.FieldByName("Logging").Set(reflect.ValueOf(n.common.Logging))
 }
 
+// HeapLimit returns the heap limit for the JVM based on the memory limit
 func HeapLimit(resource *commonsv1alpha1.ResourcesSpec) *string {
 	if resource != nil && resource.Memory != nil {
 		memoryLimit := resource.Memory.Limit

@@ -59,7 +59,7 @@ func NewZookeeperSecurity(clusterConfig *zkv1alpha1.ClusterConfigSpec) (*Zookeep
 	// serverSecretClass := serverTLSDefault()
 	serverSecretClass := ""
 	quorumSecretClass := ""
-	if clusterConfig.Tls != nil {
+	if clusterConfig != nil && clusterConfig.Tls != nil {
 		serverSecretClass = clusterConfig.Tls.ServerSecretClass
 		sslStorePassword = clusterConfig.Tls.SSLStorePassword
 		quorumSecretClass = clusterConfig.Tls.QuorumSecretClass

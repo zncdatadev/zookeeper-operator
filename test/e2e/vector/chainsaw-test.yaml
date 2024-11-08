@@ -18,7 +18,7 @@ spec:
         file: zk-discovery-assert.yaml
     cleanup:
     - sleep:
-        duration: 30s
+        duration: 50s
   - try:
     - apply:
         file: znode.yaml
@@ -26,4 +26,4 @@ spec:
         file: znode-assert.yaml
     cleanup:
     - sleep:
-        duration: 30s
+        duration: 50s
