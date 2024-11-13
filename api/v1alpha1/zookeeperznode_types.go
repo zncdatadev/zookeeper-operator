@@ -1,5 +1,5 @@
 /*
-Copyright 2024.
+Copyright 2024 zncdatadev.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import (
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=zookeeperznodes,shortName=znode;znodes,singular=zookeeperznode
 // +kubebuilder:subresource:status
-// +operator-sdk:csv:customresourcedefinitions:displayName="Zookeeper Znode"
 
 // ZookeeperZnode is the Schema for the zookeeperznodes API
 type ZookeeperZnode struct {
