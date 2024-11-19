@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.5
-  name: zookeeperclusters.zookeeper.zncdata.dev
+  name: zookeeperclusters.zookeeper.kubedoop.dev
 spec:
-  group: zookeeper.zncdata.dev
+  group: zookeeper.kubedoop.dev
   names:
     kind: ZookeeperCluster
     listKind: ZookeeperClusterList

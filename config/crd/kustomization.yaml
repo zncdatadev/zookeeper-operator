@@ -2,8 +2,8 @@
 # since it depends on service name and namespace that are out of this kustomize package.
 # It should be run by config/default
 resources:
-- bases/zookeeper.zncdata.dev_zookeeperclusters.yaml
-- bases/zookeeper.zncdata.dev_zookeeperznodes.yaml
+- bases/zookeeper.kubedoop.dev_zookeeperclusters.yaml
+- bases/zookeeper.kubedoop.dev_zookeeperznodes.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patches:

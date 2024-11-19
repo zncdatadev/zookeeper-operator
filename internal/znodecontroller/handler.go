@@ -134,7 +134,7 @@ func getClusterSvcUrl(cluster *zkv1alpha1.ZookeeperCluster, clientProt int32) st
 	return fmt.Sprintf("%s:%d", dns, clientProt)
 }
 
-const ZNodeDeleteFinalizer = "znode.zncdata.dev/delete-znode"
+const ZNodeDeleteFinalizer = "znode.kubedoop.dev/delete-znode"
 
 type ZnodeDeleteFinalizer struct {
 	clientPort int32
