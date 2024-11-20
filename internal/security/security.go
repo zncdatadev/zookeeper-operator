@@ -199,14 +199,3 @@ func (z *ZookeeperSecurity) getTLSSecretClass() string {
 	}
 	return ""
 }
-
-// Helper methods to provide defaults in the CRDs and tests
-// func serverTLSDefault() string {
-// 	return TlsDefaultSecretClass
-// }
-
-// // quorumTLSDefault
-// // Helper methods to provide defaults in the CRDs and tests
-// func quorumTLSDefault() string {
-// 	return TlsDefaultSecretClass
-// }

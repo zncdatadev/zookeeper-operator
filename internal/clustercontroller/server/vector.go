@@ -4,23 +4,25 @@ import (
 	"context"
 
 	"emperror.dev/errors"
+	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/productlogging"
 	"github.com/zncdatadev/operator-go/pkg/util"
-	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 )
 
 var vectorLogger = ctrl.Log.WithName("vector")
 
 const ContainerVector = "vector"
 
-func IsVectorEnable(roleLoggingConfig *zkv1alpha1.ContainerLoggingSpec) bool {
+func IsVectorEnable(roleLoggingConfig *commonsv1alpha1.LoggingSpec) bool {
 	if roleLoggingConfig != nil {
-		return roleLoggingConfig.EnableVectorAgent
+		return *roleLoggingConfig.EnableVectorAgent
 	}
 	return false
 
@@ -52,7 +54,7 @@ func ExtendConfigMapByVector(ctx context.Context, params VectorConfigParams, dat
 	if err != nil {
 		vectorLogger.Error(errors.Wrap(err, "error creating vector YAML"), "failed to create vector YAML")
 	} else {
-		data[builder.VectorConfigFile] = vectorYaml
+		data[builder.VectorConfigFileName] = vectorYaml
 	}
 }
 

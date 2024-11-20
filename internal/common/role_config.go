@@ -1,6 +1,7 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"github.com/zncdatadev/zookeeper-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 type Role string
@@ -122,62 +124,76 @@ func (n *ZookeeperConfig) defaultZooCfg() map[string]string {
 	}
 }
 
-func (n *ZookeeperConfig) MergeDefaultConfig(mergedCfg *zkv1alpha1.RoleGroupSpec) {
-	config := mergedCfg.Config
-
-	if config == nil {
-		mergedCfg.Config = &zkv1alpha1.ConfigSpec{}
+func (n *ZookeeperConfig) MergeDefaultConfig(
+	mergedCfg *zkv1alpha1.ConfigSpec,
+	overrides *commonsv1alpha1.OverridesSpec,
+) error {
+	mergedRoleGroupSpec := mergedCfg.RoleGroupConfigSpec
+	if mergedRoleGroupSpec == nil {
+		mergedRoleGroupSpec = &commonsv1alpha1.RoleGroupConfigSpec{}
 	}
-	// mergedresources
-	if mergedresources := mergedCfg.Config.Resources; mergedresources == nil {
-		mergedCfg.Config.Resources = n.resources
+
+	// resources
+	if mergedresources := mergedRoleGroupSpec.Resources; mergedresources == nil {
+		mergedRoleGroupSpec.Resources = n.resources
 	} else {
 		if mergedCpu := mergedresources.CPU; mergedCpu == nil {
-			mergedCfg.Config.Resources.CPU = n.resources.CPU
+			mergedRoleGroupSpec.Resources.CPU = n.resources.CPU
 		}
 		if mergedMemory := mergedresources.Memory; mergedMemory == nil {
-			mergedCfg.Config.Resources.Memory = n.resources.Memory
+			mergedRoleGroupSpec.Resources.Memory = n.resources.Memory
 		}
 		if mergedStorage := mergedresources.Storage; mergedStorage == nil {
-			mergedCfg.Config.Resources.Storage = n.resources.Storage
+			mergedRoleGroupSpec.Resources.Storage = n.resources.Storage
 		}
 	}
 
 	//affinity
-	if mergedCfg.Config.Affinity == nil {
-		mergedCfg.Config.Affinity = n.common.Affinity
+	if mergedRoleGroupSpec.Affinity == nil {
+		defaultAffinityJsonRaw, err := json.Marshal(n.common.Affinity)
+		if err != nil {
+			return err
+		}
+		mergedRoleGroupSpec.Affinity = &runtime.RawExtension{Raw: defaultAffinityJsonRaw}
 	}
 
 	// gracefulShutdownTimeoutSeconds
-	if mergedCfg.Config.GracefulShutdownTimeout == nil {
-		mergedCfg.Config.GracefulShutdownTimeout = n.common.GetgracefulShutdownTimeoutSeconds()
+	if mergedRoleGroupSpec.GracefulShutdownTimeout == "" {
+		mergedRoleGroupSpec.GracefulShutdownTimeout = *n.common.GetgracefulShutdownTimeoutSeconds()
 	}
+
+	mergedCfg.RoleGroupConfigSpec = mergedRoleGroupSpec
 
 	// configOverride
-	if mergedCfg.ConfigOverrides == nil {
-		mergedCfg.ConfigOverrides = &zkv1alpha1.ConfigOverridesSpec{}
+	if overrides == nil {
+		overrides = &commonsv1alpha1.OverridesSpec{}
 	}
-
+	configOverrides := overrides.ConfigOverrides
+	if configOverrides == nil {
+		configOverrides = map[string]map[string]string{}
+	}
 	// zoo.cfg
-	if mergedCfg.ConfigOverrides.ZooCfg == nil {
-		mergedCfg.ConfigOverrides.ZooCfg = n.defaultZooCfg()
-	} else {
-		src := mergedCfg.ConfigOverrides.ZooCfg
+	if zooCfgExists, ok := configOverrides[zkv1alpha1.ZooCfgFileName]; ok {
 		dist := n.defaultZooCfg()
+		src := zooCfgExists
 		maps.Copy(dist, src)
-		mergedCfg.ConfigOverrides.ZooCfg = dist
+		configOverrides[zkv1alpha1.ZooCfgFileName] = dist
+	} else {
+		configOverrides[zkv1alpha1.ZooCfgFileName] = n.defaultZooCfg()
 	}
 	// security.properties
-	if mergedCfg.ConfigOverrides.SercurityProps == nil {
-		mergedCfg.ConfigOverrides.SercurityProps = n.securityProps
-	} else {
-		src := mergedCfg.ConfigOverrides.SercurityProps
+	if securityPropsExists, ok := configOverrides[zkv1alpha1.SecurityFileName]; ok {
 		dist := n.securityProps
+		src := securityPropsExists
 		maps.Copy(dist, src)
-		mergedCfg.ConfigOverrides.SercurityProps = dist
+		configOverrides[zkv1alpha1.SecurityFileName] = dist
+	} else {
+		configOverrides[zkv1alpha1.SecurityFileName] = n.securityProps
 	}
+	overrides.ConfigOverrides = configOverrides
 	// You can continue to add logic to handle other fields
 	// config.FieldByName("Logging").Set(reflect.ValueOf(n.common.Logging))
+	return nil
 }
 
 // HeapLimit returns the heap limit for the JVM based on the memory limit

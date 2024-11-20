@@ -59,8 +59,18 @@ func (z *ZNodeReconciler) reconcile(ctx context.Context, cluster *zkv1alpha1.Zoo
 	listenerClass := cluster.Spec.ClusterConfig.ListenerClass
 	gvk := z.instance.GetObjectKind().GroupVersionKind()
 	clusterInfo := reconciler.ClusterInfo{GVK: &metav1.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind}, ClusterName: z.instance.Name}
-	discoveries := common.NewDiscoveries(ctx, zkv1alpha1.ListenerClass(listenerClass), client, cluster, &znodePath,
-		clusterInfo.GetLabels(), clusterInfo.GetAnnotations(), z.zkSecurity)
+	discoveries := common.NewDiscoveries(
+		ctx,
+		zkv1alpha1.ListenerClass(listenerClass),
+		client,
+		cluster,
+		&znodePath,
+		z.zkSecurity,
+		func(o *builder.Options) {
+			o.Labels = clusterInfo.GetLabels()
+			o.Annotations = clusterInfo.GetAnnotations()
+		},
+	)
 	res, err := z.reconcileDiscovery(ctx, discoveries)
 	if err != nil {
 		znodeLogger.Error(err, "create configmap for zookeeper discovery error",

@@ -22,33 +22,37 @@ func NewDiscoveries(
 	client *client.Client,
 	cluster *zkv1alpha1.ZookeeperCluster,
 	chroot *string,
-	labels, annotaions map[string]string,
-	zkSecurity *security.ZookeeperSecurity) []reconciler.ResourceReconciler[builder.ConfigBuilder] {
+	zkSecurity *security.ZookeeperSecurity,
+	options ...builder.Option,
+) []reconciler.ResourceReconciler[builder.ConfigBuilder] {
 	// pod host discovery
 	// didcovery name is cr name , like "zookeeper-cluster"
-	podHostDiscoveryBuilder := NewPodHostsDiscovery(client, cluster, zkSecurity, chroot, labels, annotaions)
+	podHostDiscoveryBuilder := NewPodHostsDiscovery(client, cluster, zkSecurity, chroot, options...)
 	podHostDiscoveryConfigMapBuilder := DiscoveryToConfigBuilder(podHostDiscoveryBuilder)
-	podHostDiscoveryName := podHostDiscoveryBuilder.Name()
 	discoveries := []reconciler.ResourceReconciler[builder.ConfigBuilder]{
-		reconciler.NewGenericResourceReconciler(client, podHostDiscoveryName, podHostDiscoveryConfigMapBuilder),
+		reconciler.NewGenericResourceReconciler(client, podHostDiscoveryConfigMapBuilder),
 	}
 	// if listener class is external unstable, add node port discovery
 	// discovery name is fmt.Sprintf("%s-nodeport", cr name), like "zookeeper-cluster-nodeport"
 	if listenerClass == zkv1alpha1.ExternalUnstable {
 		// node port discovery
-		nodePortDiscoveryBuilder := NewNodePortDiscovery(client, cluster, zkSecurity, chroot, labels, annotaions)
+		nodePortDiscoveryBuilder := NewNodePortDiscovery(client, cluster, zkSecurity, chroot, options...)
 		nodePortDiscoveryConfigMapBuilder := DiscoveryToConfigBuilder(nodePortDiscoveryBuilder)
-		nodePortDiscoveryName := nodePortDiscoveryBuilder.Name()
-		discoveries = append(discoveries, reconciler.NewGenericResourceReconciler(client, nodePortDiscoveryName, nodePortDiscoveryConfigMapBuilder))
+		discoveries = append(discoveries, reconciler.NewGenericResourceReconciler(client, nodePortDiscoveryConfigMapBuilder))
 	}
 	return discoveries
 }
 
-func NewPodHostsDiscovery(client *client.Client, cluster *zkv1alpha1.ZookeeperCluster, zkSecurity *security.ZookeeperSecurity,
-	chroot *string, labels, annotaions map[string]string) Discovery {
+func NewPodHostsDiscovery(
+	client *client.Client,
+	cluster *zkv1alpha1.ZookeeperCluster,
+	zkSecurity *security.ZookeeperSecurity,
+	chroot *string,
+	options ...builder.Option,
+) Discovery {
 	cluster = getZkCluster(client, cluster)
 	podHostDiscovery := &PodHostDiscoveryBuilder{clusterStatus: &cluster.Status, crName: client.GetOwnerName()}
-	podHostDiscovery.DiscoveryBuilder = NewDiscoveryBuilder(client, chroot, zkSecurity, labels, annotaions, podHostDiscovery)
+	podHostDiscovery.DiscoveryBuilder = NewDiscoveryBuilder(client, chroot, zkSecurity, podHostDiscovery)
 	return podHostDiscovery
 }
 
@@ -60,12 +64,18 @@ func getZkCluster(client *client.Client, cluster *zkv1alpha1.ZookeeperCluster) *
 	return cluster
 }
 
-func NewNodePortDiscovery(client *client.Client, cluster *zkv1alpha1.ZookeeperCluster, zkSecrity *security.ZookeeperSecurity, chroot *string, labels, annotaions map[string]string) Discovery {
+func NewNodePortDiscovery(
+	client *client.Client,
+	cluster *zkv1alpha1.ZookeeperCluster,
+	zkSecrity *security.ZookeeperSecurity,
+	chroot *string,
+	options ...builder.Option,
+) Discovery {
 	crName := client.GetOwnerName()
 	cluster = getZkCluster(client, cluster)
 	clusterSvcName := ClusterServiceName(cluster.GetName())
 	nodePortDiscovery := &NodePortDiscoveryBuilder{crName: crName, clusterServiceName: clusterSvcName}
-	nodePortDiscovery.DiscoveryBuilder = NewDiscoveryBuilder(client, chroot, zkSecrity, labels, annotaions, nodePortDiscovery)
+	nodePortDiscovery.DiscoveryBuilder = NewDiscoveryBuilder(client, chroot, zkSecrity, nodePortDiscovery)
 	return nodePortDiscovery
 }
 
@@ -79,10 +89,15 @@ type Discovery interface {
 	Name() string
 }
 
-func NewDiscoveryBuilder(client *client.Client, chroot *string, zkSecrity *security.ZookeeperSecurity,
-	labels, annotations map[string]string, impl Discovery) *DiscoveryBuilder {
+func NewDiscoveryBuilder(
+	client *client.Client,
+	chroot *string,
+	zkSecrity *security.ZookeeperSecurity,
+	impl Discovery,
+	options ...builder.Option,
+) *DiscoveryBuilder {
 	return &DiscoveryBuilder{
-		ConfigMapBuilder: builder.NewConfigMapBuilder(client, impl.Name(), labels, annotations),
+		ConfigMapBuilder: builder.NewConfigMapBuilder(client, impl.Name(), options...),
 		chroot:           chroot,
 		zkSecurity:       zkSecrity,
 		impl:             impl,

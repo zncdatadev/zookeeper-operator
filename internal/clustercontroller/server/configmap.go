@@ -5,17 +5,18 @@ import (
 	"fmt"
 	"strconv"
 
-	loggingv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
+	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/client"
 	"github.com/zncdatadev/operator-go/pkg/productlogging"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
-	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/common"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
 	"github.com/zncdatadev/zookeeper-operator/internal/util"
 	"golang.org/x/exp/maps"
 	"k8s.io/utils/ptr"
+
+	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 )
 
 const (
@@ -26,26 +27,41 @@ const (
 func NewConfigMapReconciler(
 	ctx context.Context,
 	client *client.Client,
+	repilicates *int32,
 	options *reconciler.RoleGroupInfo,
-	spec *zkv1alpha1.RoleGroupSpec,
+	overrides *commonsv1alpha1.OverridesSpec,
+	roleGroupSpec *commonsv1alpha1.RoleGroupConfigSpec,
 	zkSecurity *security.ZookeeperSecurity,
 ) reconciler.ResourceReconciler[*builder.ConfigMapBuilder] {
 
 	myidOffSet := 1
 	var zooCfgOverride, securityPropsOverride map[string]string
-	if spec.ConfigOverrides != nil {
-		zooCfgOverride = spec.ConfigOverrides.ZooCfg
-		securityPropsOverride = spec.ConfigOverrides.SercurityProps
+	if overrides != nil {
+		configOverride := overrides.ConfigOverrides
+		if configOverride != nil {
+			if zooCfg, ok := configOverride[zkv1alpha1.ZooCfgFileName]; ok {
+				zooCfgOverride = zooCfg
+			}
+			if securityProps, ok := configOverride[zkv1alpha1.SecurityFileName]; ok {
+				securityPropsOverride = securityProps
+			}
+		}
 	}
 
-	var containerLoggerSpec *zkv1alpha1.ContainerLoggingSpec
-	if spec.Config != nil {
-		containerLoggerSpec = spec.Config.Logging
-	}
 	namespace := client.GetOwnerNamespace()
-	cmBuilder := NewConfigMapBuilder(ctx, options, *client,
-		namespace, spec.Replicas, uint16(myidOffSet), zooCfgOverride, securityPropsOverride, zkSecurity, containerLoggerSpec)
-	return reconciler.NewGenericResourceReconciler(client, common.RoleGroupConfigMapName(options), cmBuilder)
+	cmBuilder := NewConfigMapBuilder(
+		ctx,
+		options,
+		*client,
+		namespace,
+		*repilicates,
+		uint16(myidOffSet),
+		zooCfgOverride,
+		securityPropsOverride,
+		zkSecurity,
+		roleGroupSpec.Logging,
+	)
+	return reconciler.NewGenericResourceReconciler(client, cmBuilder)
 }
 
 func NewConfigMapBuilder(
@@ -58,7 +74,7 @@ func NewConfigMapBuilder(
 	zooCfgOverride map[string]string,
 	securityPropsOverride map[string]string,
 	zkSecurity *security.ZookeeperSecurity,
-	containerLoggingConfigSpec *zkv1alpha1.ContainerLoggingSpec,
+	loggingSpec *commonsv1alpha1.LoggingSpec,
 ) *builder.ConfigMapBuilder {
 	configGenerator := &ConfigGenerator{
 		RoleGroupInfo:         roleGroupInfo,
@@ -69,12 +85,19 @@ func NewConfigMapBuilder(
 		securityPropsOverride: securityPropsOverride,
 		zkSecurity:            zkSecurity,
 	}
-	buider := builder.NewConfigMapBuilder(&client, common.RoleGroupConfigMapName(roleGroupInfo), roleGroupInfo.GetLabels(), roleGroupInfo.GetAnnotations())
+	buider := builder.NewConfigMapBuilder(
+		&client,
+		common.RoleGroupConfigMapName(roleGroupInfo),
+		func(o *builder.Options) {
+			o.Labels = roleGroupInfo.GetLabels()
+			o.Annotations = roleGroupInfo.GetAnnotations()
+		},
+	)
 	buider.AddData(map[string]string{zkv1alpha1.ZooCfgFileName: configGenerator.createZooCfgData()})
 	buider.AddData(map[string]string{zkv1alpha1.SecurityFileName: configGenerator.createSecurityPropertiesData()})
-	buider.AddData(map[string]string{LogbackConfigFileName: createLogbackXmlConfig(containerLoggingConfigSpec)})
+	buider.AddData(map[string]string{LogbackConfigFileName: createLogbackXmlConfig(loggingSpec)})
 	data := buider.GetData()
-	if IsVectorEnable(containerLoggingConfigSpec) {
+	if IsVectorEnable(loggingSpec) {
 		cr := client.GetOwnerReference()
 		cluster := cr.(*zkv1alpha1.ZookeeperCluster)
 		ExtendConfigMapByVector(ctx, VectorConfigParams{
@@ -119,8 +142,6 @@ func (c *ConfigGenerator) createZooCfgData() string {
 	return util.ToProperties(zooCfg)
 }
 
-// create logback.xml
-
 // create security.properties
 func (c *ConfigGenerator) createSecurityPropertiesData() string {
 	if c.securityPropsOverride == nil {
@@ -155,16 +176,25 @@ func (c *ConfigGenerator) configOverrides(zooCfg map[string]string) map[string]s
 	return zooCfg
 }
 
-func createLogbackXmlConfig(containerLoggerSpec *zkv1alpha1.ContainerLoggingSpec) string {
-	var loggingConfigSpec *loggingv1alpha1.LoggingConfigSpec
-	if containerLoggerSpec != nil {
-		loggingConfigSpec = containerLoggerSpec.Zookeeper
+// create logback.xml
+func createLogbackXmlConfig(loggingSpec *commonsv1alpha1.LoggingSpec) string {
+	var zkServerLoggingConfigSpec *commonsv1alpha1.LoggingConfigSpec
+	if loggingSpec != nil {
+		containersLoggingSpec := loggingSpec.Containers
+		if zkLoggingConfig, ok := containersLoggingSpec[common.ZkServerContainerName]; ok {
+			zkServerLoggingConfigSpec = &zkLoggingConfig
+		}
 	}
 	logfileName := fmt.Sprintf("%s.log4j.xml", common.ZkServerContainerName)
 	opts := func(opt *productlogging.ConfigGeneratorOption) {
 		opt.ConsoleHandlerFormatter = ptr.To(ConsoleConversionPattern)
 	}
-	logbackGenerator, _ := productlogging.NewConfigGenerator(loggingConfigSpec, common.ZkServerContainerName, logfileName, productlogging.LogTypeLogback, opts)
+	logbackGenerator, _ := productlogging.NewConfigGenerator(
+		zkServerLoggingConfigSpec,
+		common.ZkServerContainerName,
+		logfileName,
+		productlogging.LogTypeLogback, opts,
+	)
 	xml, err := logbackGenerator.Content()
 	if err != nil {
 		panic(err)

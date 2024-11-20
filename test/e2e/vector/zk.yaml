@@ -42,19 +42,14 @@ spec:
       default:
         replicas: 2
         config:
-          resources:
-            cpu:
-              min: "400m"
-              max: "800m"
-            memory:
-              limit: "2Gi"
           logging:
             enableVectorAgent: true
-            zookeeperCluster:
-              loggers:
-                test:
+            containers:
+              zookeeper:
+                loggers:
+                  org.apache.zookeeper:
+                    level: INFO
+                console:
                   level: DEBUG
-              console:
-                level: INFO
-              file:
-                level: INFO
+                file:
+                  level: INFO
