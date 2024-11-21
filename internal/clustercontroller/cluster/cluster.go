@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 
+	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/client"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	"github.com/zncdatadev/operator-go/pkg/util"
@@ -70,7 +71,18 @@ func (r *Reconciler) RegisterResources(ctx context.Context) error {
 
 	// discovery
 	listnerClass := r.ClusterConfig.ListenerClass
-	dicoveries := common.NewDiscoveries(ctx, zkv1alpha1.ListenerClass(listnerClass), client, nil, nil, clusterLables, annotations, zkSecurity)
+	dicoveries := common.NewDiscoveries(
+		ctx,
+		zkv1alpha1.ListenerClass(listnerClass),
+		client,
+		nil,
+		nil,
+		zkSecurity,
+		func(o *builder.Options) {
+			o.Labels = clusterLables
+			o.Annotations = annotations
+		},
+	)
 	if len(dicoveries) != 0 {
 		for _, d := range dicoveries {
 			r.AddResource(d)

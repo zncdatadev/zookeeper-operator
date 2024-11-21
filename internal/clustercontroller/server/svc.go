@@ -34,7 +34,7 @@ func (b *ServiceBuilder) Build(_ context.Context) (ctrlclient.Object, error) {
 func NewServiceReconciler(
 	client *client.Client,
 	option *reconciler.RoleGroupInfo,
-	listenerClass string,
+	listenerClass constants.ListenerClass,
 	zkSecurity *security.ZookeeperSecurity,
 ) *reconciler.Service {
 	ports := []corev1.ContainerPort{
@@ -48,23 +48,16 @@ func NewServiceReconciler(
 		},
 	}
 
-	// :bug: should fix this issue in operator-go
-	// when service type is nodeport, cluster ip should not be "None", so when listener class is external-unstable, headless should be false
-	headless := true
-	if listenerClass == string(constants.ExternalUnstable) {
-		headless = false
-	}
-
 	svcBuilder := &ServiceBuilder{
 		BaseServiceBuilder: *builder.NewServiceBuilder(
 			client,
 			option.GetFullName(),
 			ports,
-			func(s *builder.ServiceBuilderOption) {
-				s.Labels = option.GetLabels()
-				s.Annotations = option.GetAnnotations()
-				s.Headless = headless
-				s.ListenerClass = constants.ListenerClass(listenerClass)
+			func(sbo *builder.ServiceBuilderOptions) {
+				sbo.ListenerClass = listenerClass
+				sbo.Headless = true
+				sbo.Labels = option.GetLabels()
+				sbo.Annotations = option.GetAnnotations()
 			},
 		),
 	}
@@ -72,7 +65,6 @@ func NewServiceReconciler(
 	return &reconciler.Service{
 		GenericResourceReconciler: *reconciler.NewGenericResourceReconciler[builder.ServiceBuilder](
 			client,
-			option.GetFullName(),
 			svcBuilder,
 		),
 	}

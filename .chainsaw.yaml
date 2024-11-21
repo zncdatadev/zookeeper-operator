@@ -3,6 +3,7 @@ kind: Configuration
 metadata:
   name: custom-config
 spec:
+  # namespace: test
   timeouts:
     apply: 120s
     assert: 120s
@@ -10,7 +11,7 @@ spec:
     delete: 120s
     error: 10s
     exec: 45s
-  skipDelete: false
+  skipDelete: true
   failFast: true
   parallel: 1 # use 1 concurrent to test, to voide multiple csi driver conflict
   forceTerminationGracePeriod: 10s

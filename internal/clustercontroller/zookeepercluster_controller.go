@@ -44,9 +44,9 @@ type ZookeeperClusterReconciler struct {
 	Log    logr.Logger
 }
 
-//+kubebuilder:rbac:groups=zookeeper.zncdata.dev,resources=zookeeperclusters,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=zookeeper.zncdata.dev,resources=zookeeperclusters/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=zookeeper.zncdata.dev,resources=zookeeperclusters/finalizers,verbs=update
+//+kubebuilder:rbac:groups=zookeeper.kubedoop.dev,resources=zookeeperclusters,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=zookeeper.kubedoop.dev,resources=zookeeperclusters/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=zookeeper.kubedoop.dev,resources=zookeeperclusters/finalizers,verbs=update
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete

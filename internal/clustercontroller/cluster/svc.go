@@ -13,7 +13,7 @@ import (
 func NewClusterServiceReconciler(
 	client *client.Client,
 	option reconciler.ClusterInfo,
-	listenerClass string,
+	listenerClass constants.ListenerClass,
 	zkSecurity *security.ZookeeperSecurity,
 ) *reconciler.Service {
 	ports := []corev1.ContainerPort{
@@ -27,18 +27,17 @@ func NewClusterServiceReconciler(
 		client,
 		option.GetFullName(),
 		ports,
-		func(s *builder.ServiceBuilderOption) {
-			s.Labels = option.GetLabels()
-			s.Annotations = option.GetAnnotations()
-			s.Headless = false
-			s.ListenerClass = constants.ListenerClass(listenerClass)
+		func(sbo *builder.ServiceBuilderOptions) {
+			sbo.ListenerClass = listenerClass
+			sbo.Headless = false
+			sbo.Labels = option.GetLabels()
+			sbo.Annotations = option.GetAnnotations()
 		},
 	)
 
 	return &reconciler.Service{
 		GenericResourceReconciler: *reconciler.NewGenericResourceReconciler[builder.ServiceBuilder](
 			client,
-			option.GetFullName(),
 			svcBuilder,
 		),
 	}

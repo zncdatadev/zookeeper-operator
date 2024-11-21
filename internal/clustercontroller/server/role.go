@@ -52,17 +52,33 @@ func NewReconciler(
 
 func (r *Reconciler) RegisterResources(ctx context.Context) error {
 	for name, roleGroup := range r.Spec.RoleGroups {
-		mergedRoleGroup := r.MergeRoleGroupSpec(&roleGroup)
-		defaultConfig := common.DefaultServerConfig(r.RoleInfo.ClusterName)
-		mergedCfg := mergedRoleGroup.(*zkv1alph1.RoleGroupSpec)
+
+		mergedConfig, err := util.MergeObject(r.Spec.Config, roleGroup.Config)
+		if err != nil {
+			return err
+		}
+		overrides, err := util.MergeObject(r.Spec.OverridesSpec, roleGroup.OverridesSpec)
+		if err != nil {
+			return err
+		}
 		// merge default config to the provided config
-		defaultConfig.MergeDefaultConfig(mergedCfg)
+		defaultConfig := common.DefaultServerConfig(r.RoleInfo.ClusterName)
+		if mergedConfig == nil {
+			mergedConfig = &zkv1alph1.ConfigSpec{}
+		}
+		if overrides == nil {
+			overrides = &commonsv1alpha1.OverridesSpec{}
+		}
+		err = defaultConfig.MergeDefaultConfig(mergedConfig, overrides)
+		if err != nil {
+			return err
+		}
 
 		info := &reconciler.RoleGroupInfo{
 			RoleInfo:      r.RoleInfo,
 			RoleGroupName: name,
 		}
-		reconcilers, err := r.RegisterResourceWithRoleGroup(ctx, info, mergedRoleGroup)
+		reconcilers, err := r.RegisterResourceWithRoleGroup(ctx, info, &roleGroup.Replicas, mergedConfig.RoleGroupConfigSpec, overrides)
 		if err != nil {
 			return err
 		}
@@ -71,13 +87,17 @@ func (r *Reconciler) RegisterResources(ctx context.Context) error {
 			r.AddResource(reconciler)
 			logger.Info("registered resource", "role", r.GetName(), "roleGroup", name, "reconciler", reconciler.GetName())
 		}
-
 	}
 	return nil
 }
 
-func (r *Reconciler) RegisterResourceWithRoleGroup(ctx context.Context, info *reconciler.RoleGroupInfo,
-	roleGroupSpec any) ([]reconciler.Reconciler, error) {
+func (r *Reconciler) RegisterResourceWithRoleGroup(
+	ctx context.Context,
+	info *reconciler.RoleGroupInfo,
+	repilicates *int32,
+	mergedRoleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
+	mergedOverrides *commonsv1alpha1.OverridesSpec,
+) ([]reconciler.Reconciler, error) {
 	var reconcilers []reconciler.Reconciler
 	// security
 	zkSecurity, err := security.NewZookeeperSecurity(r.ClusterConfig)
@@ -87,7 +107,16 @@ func (r *Reconciler) RegisterResourceWithRoleGroup(ctx context.Context, info *re
 	}
 
 	// 1. statefulset
-	statefulSet, err := NewStatefulsetReconciler(r.Client, r.ClusterConfig, info, r.Image, r.ClusterStopped, roleGroupSpec.(*zkv1alph1.RoleGroupSpec), zkSecurity)
+	statefulSet, err := NewStatefulsetReconciler(
+		r.Client,
+		info,
+		r.ClusterConfig,
+		r.Image,
+		repilicates,
+		r.ClusterStopped(),
+		mergedOverrides,
+		mergedRoleGroupConfig,
+		zkSecurity)
 	if err != nil {
 		logger.V(1).Info("failed to create statefulset reconciler", "error", err)
 		return nil, err
@@ -100,7 +129,7 @@ func (r *Reconciler) RegisterResourceWithRoleGroup(ctx context.Context, info *re
 	reconcilers = append(reconcilers, service)
 
 	// 3. cofigmap
-	configMap := NewConfigMapReconciler(ctx, r.Client, info, roleGroupSpec.(*zkv1alph1.RoleGroupSpec), zkSecurity)
+	configMap := NewConfigMapReconciler(ctx, r.Client, repilicates, info, mergedOverrides, mergedRoleGroupConfig, zkSecurity)
 	reconcilers = append(reconcilers, configMap)
 
 	return reconcilers, nil

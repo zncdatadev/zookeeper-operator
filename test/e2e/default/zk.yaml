@@ -1,4 +1,4 @@
-apiVersion: zookeeper.zncdata.dev/v1alpha1
+apiVersion: zookeeper.kubedoop.dev/v1alpha1
 kind: ZookeeperCluster
 metadata:
   name: zk
@@ -14,19 +14,3 @@ spec:
     roleGroups:
       default:
         replicas: 3
-        config:
-          resources:
-            cpu:
-              min: "400m"
-              max: "800m"
-            memory:
-              limit: "2Gi"
-          logging:
-            zookeeperCluster:
-              loggers:
-                test:
-                  level: DEBUG
-              console:
-                level: INFO
-              file:
-                level: INFO
