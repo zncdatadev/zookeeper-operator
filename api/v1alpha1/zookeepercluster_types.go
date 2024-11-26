@@ -1,5 +1,5 @@
 /*
-Copyright 2024.
+Copyright 2024 zncdatadev.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package v1alpha1
 
 import (
 	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
+	"github.com/zncdatadev/operator-go/pkg/constants"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -69,12 +69,6 @@ const (
 // +kubebuilder:resource:path=zookeeperclusters,scope=Namespaced,shortName=zk;zks,singular=zookeepercluster
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
-// +operator-sdk:csv:customresourcedefinitions:displayName="Zookeeper Cluster"
-// This annotation provides a hint for OLM which resources are managed by ZookeeperCluster kind.
-// It's not mandatory to list all resources.
-// https://sdk.operatorframework.io/docs/olm-integration/generation/#csv-fields
-// https://sdk.operatorframework.io/docs/building-operators/golang/references/markers/
-// +operator-sdk:csv:customresourcedefinitions:resources={{Deployment,app/v1},{Service,v1},{Pod,v1},{ConfigMap,v1},{PersistentVolumeClaim,v1},{PersistentVolume,v1},{PodDisruptionBudget,v1}}
 
 // ZookeeperCluster is the Schema for the zookeeperclusters API
 type ZookeeperCluster struct {
@@ -119,7 +113,7 @@ type ClusterConfigSpec struct {
 	// +kubebuilder:validation:optional
 	// +kubebuilder:validation:Enum="cluster-internal";"external-unstable"
 	// +kubebuilder:default="cluster-internal"
-	ListenerClass string `json:"listenerClass"`
+	ListenerClass constants.ListenerClass `json:"listenerClass"`
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default:="cluster.local"
@@ -191,19 +185,9 @@ type ServerSpec struct {
 	RoleGroups map[string]RoleGroupSpec `json:"roleGroups,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	PodDisruptionBudget *commonsv1alpha1.PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
+	RoleConfig *commonsv1alpha1.RoleConfigSpec `json:"roleConfig,omitempty"`
 
-	// +kubebuilder:validation:Optional
-	CommandOverrides []string `json:"commandOverrides,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	ConfigOverrides *ConfigOverridesSpec `json:"configOverrides,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	EnvOverrides map[string]string `json:"envOverrides,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	PodOverrides *corev1.PodTemplateSpec `json:"podOverrides,omitempty"`
+	*commonsv1alpha1.OverridesSpec `json:",inline"`
 }
 
 type RoleGroupSpec struct {
@@ -211,93 +195,20 @@ type RoleGroupSpec struct {
 	// +kubebuilder:default:=1
 	Replicas int32 `json:"replicas,omitempty"`
 
-	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Optional
 	Config *ConfigSpec `json:"config,omitempty"`
 
-	// +kubebuilder:validation:Optional
-	PodDisruptionBudget *commonsv1alpha1.PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	CommandOverrides []string `json:"commandOverrides,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	ConfigOverrides *ConfigOverridesSpec `json:"configOverrides,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	EnvOverrides map[string]string `json:"envOverrides,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	PodOverrides *corev1.PodTemplateSpec `json:"podOverrides,omitempty"`
+	*commonsv1alpha1.OverridesSpec `json:",inline"`
 }
 
 type ConfigSpec struct {
-	// +kubebuilder:validation:Optional
-	Resources *commonsv1alpha1.ResourcesSpec `json:"resources,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	SecurityContext *corev1.PodSecurityContext `json:"securityContext"`
-
-	// +kubebuilder:validation:Optional
-	Affinity *corev1.Affinity `json:"affinity"`
-
-	// +kubebuilder:validation:Optional
-	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	Tolerations []corev1.Toleration `json:"tolerations"`
-
-	// +kubebuilder:validation:Optional
-	PodDisruptionBudget *PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
-
-	// Use time.ParseDuration to parse the string
-	// +kubebuilder:validation:Optional
-	GracefulShutdownTimeout *string `json:"gracefulShutdownTimeout,omitempty"`
+	*commonsv1alpha1.RoleGroupConfigSpec `json:",inline"`
 
 	// +kubebuilder:validation:Optional
 	ExtraEnv map[string]string `json:"extraEnv,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	ExtraSecret map[string]string `json:"extraSecret,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	Logging *ContainerLoggingSpec `json:"logging,omitempty"`
-}
-
-type ContainerLoggingSpec struct {
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default=false
-	EnableVectorAgent bool `json:"enableVectorAgent,omitempty"`
-	// +kubebuilder:validation:Optional
-	Zookeeper *commonsv1alpha1.LoggingConfigSpec `json:"zookeeperCluster,omitempty"`
-}
-
-type ConfigOverridesSpec struct {
-	ZooCfg         map[string]string `json:"zoo.cfg,omitempty"`
-	SercurityProps map[string]string `json:"security.properties,omitempty"`
-}
-
-type PodDisruptionBudgetSpec struct {
-	// +kubebuilder:validation:Optional
-	MinAvailable int32 `json:"minAvailable,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	MaxUnavailable int32 `json:"maxUnavailable,omitempty"`
-}
-
-type ServiceSpec struct {
-	// +kubebuilder:validation:Optional
-	Annotations map[string]string `json:"annotations,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:enum=ClusterIP;NodePort;LoadBalancer;ExternalName
-	// +kubebuilder:default=ClusterIP
-	Type corev1.ServiceType `json:"type,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=65535
-	// +kubebuilder:default=2181
-	Port int32 `json:"port,omitempty"`
 }
 
 func init() {

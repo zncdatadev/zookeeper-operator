@@ -10,6 +10,7 @@ import (
 
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/client"
+	"github.com/zncdatadev/operator-go/pkg/constants"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 )
 
@@ -33,7 +34,7 @@ func (b *ServiceBuilder) Build(_ context.Context) (ctrlclient.Object, error) {
 func NewServiceReconciler(
 	client *client.Client,
 	option *reconciler.RoleGroupInfo,
-	listenerClass string,
+	listenerClass constants.ListenerClass,
 	zkSecurity *security.ZookeeperSecurity,
 ) *reconciler.Service {
 	ports := []corev1.ContainerPort{
@@ -47,24 +48,23 @@ func NewServiceReconciler(
 		},
 	}
 
-	var serviceType corev1.ServiceType = corev1.ServiceTypeClusterIP
-
 	svcBuilder := &ServiceBuilder{
 		BaseServiceBuilder: *builder.NewServiceBuilder(
 			client,
 			option.GetFullName(),
-			option.GetLabels(),
-			option.GetAnnotations(),
 			ports,
-			&serviceType,
-			true, // as workload is statefulset, so the service is headless
+			func(sbo *builder.ServiceBuilderOptions) {
+				sbo.ListenerClass = listenerClass
+				sbo.Headless = true
+				sbo.Labels = option.GetLabels()
+				sbo.Annotations = option.GetAnnotations()
+			},
 		),
 	}
 
 	return &reconciler.Service{
 		GenericResourceReconciler: *reconciler.NewGenericResourceReconciler[builder.ServiceBuilder](
 			client,
-			option.GetFullName(),
 			svcBuilder,
 		),
 	}

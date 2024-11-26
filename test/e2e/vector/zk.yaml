@@ -18,7 +18,7 @@ rules:
   verbs:
   - create
 ---
-apiVersion: zookeeper.zncdata.dev/v1alpha1
+apiVersion: zookeeper.kubedoop.dev/v1alpha1
 kind: ZookeeperCluster
 metadata:
   labels:
@@ -29,11 +29,6 @@ metadata:
     app.kubernetes.io/created-by: zookeeper-operator
   name: zookeepercluster-sample
 spec:
-  image:
-    platformVersion: "0.0.0-dev"
-    productVersion: "3.8.4"
-    pullPolicy: IfNotPresent
-    repository: quay.io/zncdatadev
   clusterOperation:
     stopped: false
   clusterConfig:
@@ -47,19 +42,14 @@ spec:
       default:
         replicas: 2
         config:
-          resources:
-            cpu:
-              min: "400m"
-              max: "800m"
-            memory:
-              limit: "2Gi"
           logging:
             enableVectorAgent: true
-            zookeeperCluster:
-              loggers:
-                test:
+            containers:
+              zookeeper:
+                loggers:
+                  org.apache.zookeeper:
+                    level: INFO
+                console:
                   level: DEBUG
-              console:
-                level: INFO
-              file:
-                level: INFO
+                file:
+                  level: INFO

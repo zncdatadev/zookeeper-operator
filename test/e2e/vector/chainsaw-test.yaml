@@ -9,19 +9,6 @@ spec:
         file: aggregator.yaml
     - assert:
         file: aggregator-assert.yaml
-    - apply:
-        file: ../setup/olm.yaml
-    - assert:
-        file: ../setup/olm-assert.yaml
-  - try:
-    - apply:
-        file: ../setup/subs.yaml
-    - assert:
-        file: ../setup/subs-assert.yaml
-    - apply:
-        file: ../setup/secret.yaml
-    - assert:
-        file: ../setup/secret-assert.yaml
   - try:
     - apply:
         file: zk.yaml
@@ -31,7 +18,7 @@ spec:
         file: zk-discovery-assert.yaml
     cleanup:
     - sleep:
-        duration: 30s
+        duration: 50s
   - try:
     - apply:
         file: znode.yaml
@@ -39,4 +26,4 @@ spec:
         file: znode-assert.yaml
     cleanup:
     - sleep:
-        duration: 30s
+        duration: 50s

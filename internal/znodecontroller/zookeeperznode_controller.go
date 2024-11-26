@@ -1,5 +1,5 @@
 /*
-Copyright 2024.
+Copyright 2024 zncdatadev.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -43,9 +43,9 @@ type ZookeeperZnodeReconciler struct {
 	Log    logr.Logger
 }
 
-// +kubebuilder:rbac:groups=zookeeper.zncdata.dev,resources=zookeeperznodes,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=zookeeper.zncdata.dev,resources=zookeeperznodes/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=zookeeper.zncdata.dev,resources=zookeeperznodes/finalizers,verbs=update
+// +kubebuilder:rbac:groups=zookeeper.kubedoop.dev,resources=zookeeperznodes,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=zookeeper.kubedoop.dev,resources=zookeeperznodes/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=zookeeper.kubedoop.dev,resources=zookeeperznodes/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
@@ -115,7 +115,7 @@ func (r *ZookeeperZnodeReconciler) getClusterInstance(znode *zkv1alpha1.Zookeepe
 		},
 	}
 	resourceClient := client.NewClient(r.Client, clusterInstance)
-	err := resourceClient.Get(ctx, clusterInstance)
+	err := resourceClient.GetWithObject(ctx, clusterInstance)
 	if err != nil {
 		return nil, ErrZookeeperCluster
 	}

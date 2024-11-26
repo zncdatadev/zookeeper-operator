@@ -20,8 +20,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINTER_RULES_PATH: /
           MARKDOWN_CONFIG_FILE: .markdownlint.yml
-
-
   golang-lint:
     name: Golang Lint
     runs-on: ubuntu-22.04
@@ -65,7 +63,6 @@ jobs:
           # Optional: The mode to install golangci-lint. It can be 'binary' or 'goinstall'.
           # install-mode: "goinstall"
 
-
   golang-test:
     name: Golang Test
     runs-on: ubuntu-22.04
@@ -87,7 +84,6 @@ jobs:
         run: go get ./...
       - name: Test with Go
         run: make test
-
 
   chainsaw-test:
     name: Chainsaw Test
@@ -148,11 +144,3 @@ jobs:
       - name: Build and push operator
         run: |
           make docker-buildx
-      - name: Build and push operator bundle
-        run: |
-          make bundle
-          make bundle-buildx
-      - name: Build and push catalog
-        run: |
-          make catalog
-          make catalog-buildx

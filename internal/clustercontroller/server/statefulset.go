@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"path"
 	"strings"
-	"time"
 
+	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/client"
 	"github.com/zncdatadev/operator-go/pkg/constants"
@@ -26,81 +26,79 @@ import (
 
 func NewStatefulsetReconciler(
 	client *client.Client,
-	clusterConfig *zkv1alpha1.ClusterConfigSpec,
 	roleGroupInfo *reconciler.RoleGroupInfo,
+	clusterConfig *zkv1alpha1.ClusterConfigSpec,
 	image *oputil.Image,
+	repilicates *int32,
 	stopped bool,
-	spec *zkv1alpha1.RoleGroupSpec,
+	overrides *commonsv1alpha1.OverridesSpec,
+	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
 	zkSecurity *security.ZookeeperSecurity,
 ) (reconciler.ResourceReconciler[builder.StatefulSetBuilder], error) {
 
-	options := builder.WorkloadOptions{
-		Options: builder.Options{
-			ClusterName:   roleGroupInfo.GetClusterName(),
-			RoleName:      roleGroupInfo.GetRoleName(),
-			RoleGroupName: roleGroupInfo.GetGroupName(),
-			Labels:        roleGroupInfo.GetLabels(),
-			Annotations:   roleGroupInfo.GetAnnotations(),
+	stsBuilder := NewStatefulSetBuilder(
+		client,
+		common.StatefulsetName(roleGroupInfo),
+		clusterConfig,
+		image,
+		repilicates,
+		zkSecurity,
+		overrides,
+		roleGroupConfig,
+		func(o *builder.Options) {
+			o.ClusterName = roleGroupInfo.ClusterName
+			o.RoleName = roleGroupInfo.RoleName
+			o.RoleGroupName = roleGroupInfo.RoleGroupName
+			o.Labels = roleGroupInfo.GetLabels()
+			o.Annotations = roleGroupInfo.GetAnnotations()
 		},
-		PodOverrides:     spec.PodOverrides,
-		CommandOverrides: spec.CommandOverrides,
-		EnvOverrides:     spec.EnvOverrides,
-	}
-
-	if spec.Config != nil {
-
-		var gracefulShutdownTimeout time.Duration
-		var err error
-
-		if spec.Config.GracefulShutdownTimeout != nil {
-			gracefulShutdownTimeout, err = time.ParseDuration(*spec.Config.GracefulShutdownTimeout)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		options.TerminationGracePeriod = &gracefulShutdownTimeout
-		options.Resource = spec.Config.Resources
-		options.Affinity = spec.Config.Affinity
-	}
-
-	stsBuilder := NewStatefulSetBuilder(client, roleGroupInfo, spec, clusterConfig, image, zkSecurity, options)
-
-	return reconciler.NewStatefulSet(client, common.StatefulsetName(roleGroupInfo), stsBuilder, stopped), nil
+	)
+	return reconciler.NewStatefulSet(
+		client,
+		stsBuilder,
+		stopped,
+	), nil
 }
 
 var _ builder.StatefulSetBuilder = &StatefulsetBuilder{}
 
 func NewStatefulSetBuilder(
 	client *client.Client,
-	info *reconciler.RoleGroupInfo,
-	mergedCfg *zkv1alpha1.RoleGroupSpec,
+	name string,
 	clusterConfig *zkv1alpha1.ClusterConfigSpec,
 	image *oputil.Image,
+	repilicates *int32,
 	zkSecurity *security.ZookeeperSecurity,
-	options builder.WorkloadOptions,
+	overrides *commonsv1alpha1.OverridesSpec,
+	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
+	options ...builder.Option,
 ) *StatefulsetBuilder {
+	opts := builder.Options{}
+	for _, opt := range options {
+		opt(&opts)
+	}
 	return &StatefulsetBuilder{
-		StatefulSet: *builder.NewStatefulSetBuilder(client, common.StatefulsetName(info), &mergedCfg.Replicas, image, options),
-		mergedCfg:   mergedCfg,
-		RoleName:    options.RoleName,
-		zkSecurity:  zkSecurity,
-		info:        info,
+		StatefulSet: *builder.NewStatefulSetBuilder(
+			client,
+			name,
+			repilicates,
+			image,
+			overrides,
+			roleGroupConfig,
+			options...,
+		),
+		zkSecurity: zkSecurity,
 	}
 }
 
 type StatefulsetBuilder struct {
 	builder.StatefulSet
-	info          *reconciler.RoleGroupInfo
-	mergedCfg     *zkv1alpha1.RoleGroupSpec
 	ClusterConfig *zkv1alpha1.ClusterConfigSpec
-	RoleName      string
 
 	zkSecurity *security.ZookeeperSecurity
 }
 
 func (b *StatefulsetBuilder) Build(ctx context.Context) (ctrlClient.Object, error) {
-	b.SetAffinity(b.mergedCfg.Config.Affinity)
 	b.AddContainers(b.buildContainers())
 	b.AddInitContainer(b.buildInitContainer())
 	b.AddVolumes(b.getVolumes())
@@ -117,8 +115,8 @@ func (b *StatefulsetBuilder) Build(ctx context.Context) (ctrlClient.Object, erro
 	b.zkSecurity.AddVolumeMounts(podTemplateSpec, zkContainer)
 
 	obj.Spec.PodManagementPolicy = appv1.ParallelPodManagement // parallel pod management
-	obj.Spec.ServiceName = common.RoleGroupServiceName(b.info) // headless service name
-	obj.Spec.Template.Spec.ServiceAccountName = builder.ServiceAccountName(zkv1alpha1.DefaultProductName)
+	obj.Spec.ServiceName = b.Name                              // headless service name
+	obj.Spec.Template.Spec.ServiceAccountName = zkv1alpha1.DefaultProductName
 
 	userId := int64(1001) // service account name
 	userGroup := int64(0)
@@ -133,8 +131,8 @@ func (b *StatefulsetBuilder) Build(ctx context.Context) (ctrlClient.Object, erro
 	obj.Spec.Template.Spec.EnableServiceLinks = &isServiceLinks
 
 	//vector
-	if IsVectorEnable(b.mergedCfg.Config.Logging) {
-		ExtendWorkloadByVector(b.GetImage(), obj, common.RoleGroupConfigMapName(b.info))
+	if IsVectorEnable(b.RoleGroupConfig.Logging) {
+		ExtendWorkloadByVector(b.GetImage(), obj, b.Name)
 	}
 
 	// apend pos host connection to instance status
@@ -144,19 +142,19 @@ func (b *StatefulsetBuilder) Build(ctx context.Context) (ctrlClient.Object, erro
 
 // append client connections to status of instance
 func (b *StatefulsetBuilder) appendClientConnections(ctx context.Context) {
-	stsName := common.StatefulsetName(b.info)
-	svcName := common.RoleGroupServiceName(b.info)
+	stsName := b.Name
+	svcName := b.Name
 	clientPort := b.zkSecurity.ClientPort()
 	replicas := b.GetReplicas()
 	connection := common.CreateClientConnectionString(stsName, *replicas, int32(clientPort), svcName, b.GetObjectMeta().Namespace)
 
 	instance := b.GetClient().GetOwnerReference().(*zkv1alpha1.ZookeeperCluster)
 	statusConnections := instance.Status.ClientConnections
-	groupName := b.info.GetRoleName()
+	roleName := b.RoleName
 	if statusConnections == nil {
 		statusConnections = make(map[string]string)
 	}
-	statusConnections[groupName] = connection
+	statusConnections[roleName] = connection
 	instance.Status.ClientConnections = statusConnections
 	if err := b.Client.GetCtrlClient().Status().Update(ctx, instance); err != nil {
 		logger.Error(err, "failed to update instance status", "namespace", instance.Namespace, "name", instance.Name)
@@ -168,7 +166,7 @@ func (b *StatefulsetBuilder) buildContainers() []corev1.Container {
 	image := b.GetImage()
 	mainContainerBuilder := builder.NewContainer(b.RoleName, image).
 		SetImagePullPolicy(b.GetImage().GetPullPolicy()).
-		SetResources(b.mergedCfg.Config.Resources).
+		SetResources(b.RoleGroupConfig.Resources).
 		SetCommand([]string{"/bin/bash", "-x", "-euo", "pipefail", "-c"}).
 		SetArgs(b.getMainContainerCommanArgs()).
 		AddVolumeMounts(b.getVolumeMounts()).AddEnvVars(b.getEnvVars()).
@@ -273,7 +271,7 @@ func (b *StatefulsetBuilder) getEnvVars() []corev1.EnvVar {
 			Value: util.JvmJmxOpts(zkv1alpha1.MetricsPort),
 		},
 	}
-	heapLimit := common.HeapLimit(b.mergedCfg.Config.Resources)
+	heapLimit := common.HeapLimit(b.RoleGroupConfig.Resources)
 	if heapLimit != nil {
 		envs = append(envs, corev1.EnvVar{
 			Name:  common.ZKServerHeap,
@@ -377,7 +375,7 @@ func (b *StatefulsetBuilder) createVolumeClaimTemplate() *corev1.PersistentVolum
 			VolumeMode:  func() *corev1.PersistentVolumeMode { v := corev1.PersistentVolumeFilesystem; return &v }(),
 			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: b.mergedCfg.Config.Resources.Storage.Capacity,
+					corev1.ResourceStorage: b.RoleGroupConfig.Resources.Storage.Capacity,
 				},
 			},
 		},

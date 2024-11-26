@@ -12,7 +12,7 @@ metadata:
   name: zookeeperznode-viewer-role
 rules:
 - apiGroups:
-  - zookeeper.zncdata.dev
+  - zookeeper.kubedoop.dev
   resources:
   - zookeeperznodes
   verbs:
@@ -20,7 +20,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - zookeeper.zncdata.dev
+  - zookeeper.kubedoop.dev
   resources:
   - zookeeperznodes/status
   verbs:

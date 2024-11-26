@@ -1,7 +1,7 @@
 apiVersion: chainsaw.kyverno.io/v1alpha1
 kind: Test
 metadata:
-  name: default
+  name: pdb
 spec:
   steps:
   - try:
@@ -9,8 +9,6 @@ spec:
         file: zk.yaml
     - assert:
         file: zk-assert.yaml
-    - assert:
-        file: zk-discovery-assert.yaml
     catch:
       - sleep:
           duration: 5s
@@ -25,14 +23,6 @@ spec:
       - podLogs:
           selector: app.kubernetes.io/instance=zk
           tail: -1
-    cleanup:
-    - sleep:
-        duration: 30s
-  - try:
-    - apply:
-        file: znode.yaml
-    - assert:
-        file: znode-assert.yaml
     cleanup:
     - sleep:
         duration: 30s

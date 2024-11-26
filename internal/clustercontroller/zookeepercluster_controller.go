@@ -1,5 +1,5 @@
 /*
-Copyright 2024.
+Copyright 2024 zncdatadev.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -44,19 +44,19 @@ type ZookeeperClusterReconciler struct {
 	Log    logr.Logger
 }
 
-//+kubebuilder:rbac:groups=zookeeper.zncdata.dev,resources=zookeeperclusters,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=zookeeper.zncdata.dev,resources=zookeeperclusters/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=zookeeper.zncdata.dev,resources=zookeeperclusters/finalizers,verbs=update
+//+kubebuilder:rbac:groups=zookeeper.kubedoop.dev,resources=zookeeperclusters,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=zookeeper.kubedoop.dev,resources=zookeeperclusters/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=zookeeper.kubedoop.dev,resources=zookeeperclusters/finalizers,verbs=update
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=endpoints,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
 
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
 func (r *ZookeeperClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

@@ -3,6 +3,7 @@ package cluster
 import (
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/client"
+	"github.com/zncdatadev/operator-go/pkg/constants"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
@@ -12,7 +13,7 @@ import (
 func NewClusterServiceReconciler(
 	client *client.Client,
 	option reconciler.ClusterInfo,
-	listenerClass string,
+	listenerClass constants.ListenerClass,
 	zkSecurity *security.ZookeeperSecurity,
 ) *reconciler.Service {
 	ports := []corev1.ContainerPort{
@@ -22,30 +23,21 @@ func NewClusterServiceReconciler(
 		},
 	}
 
-	var serviceType corev1.ServiceType
-	switch listenerClass {
-	case string(zkv1alpha1.ClusterInternal):
-		serviceType = corev1.ServiceTypeClusterIP
-	case string(zkv1alpha1.ExternalUnstable):
-		serviceType = corev1.ServiceTypeNodePort
-	default:
-		serviceType = corev1.ServiceTypeClusterIP
-	}
-
 	svcBuilder := builder.NewServiceBuilder(
 		client,
 		option.GetFullName(),
-		option.GetLabels(),
-		option.GetAnnotations(),
 		ports,
-		&serviceType,
-		false,
+		func(sbo *builder.ServiceBuilderOptions) {
+			sbo.ListenerClass = listenerClass
+			sbo.Headless = false
+			sbo.Labels = option.GetLabels()
+			sbo.Annotations = option.GetAnnotations()
+		},
 	)
 
 	return &reconciler.Service{
 		GenericResourceReconciler: *reconciler.NewGenericResourceReconciler[builder.ServiceBuilder](
 			client,
-			option.GetFullName(),
 			svcBuilder,
 		),
 	}

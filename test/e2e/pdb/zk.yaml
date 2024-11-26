@@ -3,14 +3,12 @@ kind: ZookeeperCluster
 metadata:
   name: zk
 spec:
-  clusterOperation:
-    stopped: false
   clusterConfig:
-    listenerClass: external-unstable
-    tls:
-      quorumSecretClass: tls
-      serverSecretClass: tls
+    listenerClass: cluster-internal
   server:
+    roleConfig:
+      podDisruptionBudget:
+        maxUnavailable: 2
     roleGroups:
       default:
         replicas: 3

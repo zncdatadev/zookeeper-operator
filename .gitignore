@@ -25,16 +25,7 @@ Dockerfile.cross
 *.swo
 *~
 
-
-bundle.Dockerfile
-bundle
-
-bundle*
-
 kind-kubeconfig*
-
-catalog.Dockerfile
-catalog
 
 *-local.yaml
 
@@ -46,3 +37,5 @@ cover.out
 
 # ai code local
 .codiumai.toml
+
+**/.cr-release-packages/*
