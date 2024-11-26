@@ -2,11 +2,13 @@
 
 ## v0.1.1
 
-### Added
+### Initial Release
 
 - Added `@types/node` as a dependency
 - Added `@types/jest` as a dev dependency
 - Added `@types/react` as a dev dependency
+- Added `@types/react-dom` as a dev dependency
+- Added `@types/react-test-renderer` as a dev dependency
 
 ### Fixed
 
