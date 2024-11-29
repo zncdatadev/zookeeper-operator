@@ -33,7 +33,7 @@ type ZookeeperZnode struct {
 	Status ZookeeperClusterStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 type ZookeeperZnodeList struct {
 	metav1.TypeMeta `json:",inline"`

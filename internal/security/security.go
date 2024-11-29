@@ -12,7 +12,7 @@ import (
 const (
 	ZkClientPortConfigItem string = "clientPort"
 
-	//volume name and mount path
+	// volume name and mount path
 	ServerTlsVolumeName string = "server-tls"
 	QuorumTlsVolumeName string = "quorum-tls"
 
@@ -22,7 +22,7 @@ const (
 	ServerTLSMountDir   string = "/kubedoop/server_tls_mount"
 	SystemTrustStoreDir string = "/etc/pki/java/cacerts"
 
-	//Quorum TLS
+	// Quorum TLS
 	SSLQuorum                     string = "sslQuorum"
 	SSLQuorumClientAuth           string = "ssl.quorum.clientAuth"
 	SSLQuorumHostNameVerification string = "ssl.quorum.hostnameVerification"
@@ -31,7 +31,7 @@ const (
 	SSLQuorumTrustStoreLocation   string = "ssl.quorum.trustStore.location"
 	SSLQuorumTrustStorePassword   string = "ssl.quorum.trustStore.password"
 
-	//client TLS
+	// client TLS
 	SSLClientAuth           string = "ssl.clientAuth"
 	SSLHostNameVerification string = "ssl.hostnameVerification"
 	SSLKeyStoreLocation     string = "ssl.keyStore.location"
@@ -39,15 +39,17 @@ const (
 	SSLTrustStoreLocation   string = "ssl.trustStore.location"
 	SSLTrustStorePassword   string = "ssl.trustStore.password"
 
-	//Common tls
+	// Common tls
 	SSLAuthProviderX509 string = "authProvider.x509"
 	ServerCnxnFactory   string = "serverCnxnFactory"
 
-	//mis
+	// mis
 	StorePasswordEnv string = "STORE_PASSWORD"
 
-	//authentication classes
+	// authentication classes
 	TlsDefaultSecretClass string = "tls"
+
+	TrueString = "true"
 )
 
 // NewZookeeperSecurity creates a ZookeeperSecurity struct from the Zookeeper custom resource and resolves all provided AuthenticationClass references.
@@ -124,8 +126,8 @@ func (z *ZookeeperSecurity) ConfigSettings() map[string]string {
 	if z.quorumSecretClass != "" {
 		authNeeded := "need"
 		// Quorum TLS
-		config[SSLQuorum] = "true"
-		config[SSLQuorumHostNameVerification] = "true"
+		config[SSLQuorum] = TrueString
+		config[SSLQuorumHostNameVerification] = TrueString
 		config[SSLQuorumClientAuth] = authNeeded
 		config[ServerCnxnFactory] = "org.apache.zookeeper.server.NettyServerCnxnFactory"
 		config[SSLAuthProviderX509] = "org.apache.zookeeper.server.auth.X509AuthenticationProvider"
@@ -164,8 +166,8 @@ func (z *ZookeeperSecurity) ConfigSettings() map[string]string {
 		// 3) Using the clientPort and portUnification still allows plaintext connection without
 		// authentication, but at least TLS and authentication works when connecting securely.
 		config[ZkClientPortConfigItem] = strconv.FormatUint(uint64(z.ClientPort()), 10)
-		config["client.portUnification"] = "true"
-		config[SSLHostNameVerification] = "true"
+		config["client.portUnification"] = TrueString
+		config[SSLHostNameVerification] = TrueString
 		// todo and checked in init container. The keystore and truststore passwords should not be in the configmap and are generated
 		// and written later via script in the init container
 		config[SSLKeyStoreLocation] = fmt.Sprintf("%s/keystore.p12", ServerTLSDir)
@@ -176,7 +178,7 @@ func (z *ZookeeperSecurity) ConfigSettings() map[string]string {
 			config[SSLTrustStorePassword] = z.sslStorePassword
 		}
 
-		//todo auth tls
+		// todo auth tls
 		if z.resolvedAuthenticationClasses != "" {
 			config[SSLClientAuth] = "need"
 		}

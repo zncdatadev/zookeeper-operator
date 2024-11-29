@@ -17,9 +17,9 @@ func QuantityToMB(quantity resource.Quantity) float64 {
 	return (float64(quantity.Value() / (1024 * 1024)))
 }
 
-// format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/server.yaml")
+// SERVER_JVMFLAGS:  -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=9505:/stackable/jmx/server.yaml -Dlogback.configurationFile=/stackable/log_config/logback.xml -Djava.security.properties=/stackable/config/secur
 func JvmJmxOpts(metricsPort int) string {
-	//SERVER_JVMFLAGS:  -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=9505:/stackable/jmx/server.yaml -Dlogback.configurationFile=/stackable/log_config/logback.xml -Djava.security.properties=/stackable/config/secur
+	// SERVER_JVMFLAGS:  -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=9505:/stackable/jmx/server.yaml -Dlogback.configurationFile=/stackable/log_config/logback.xml -Djava.security.properties=/stackable/config/secur
 	var jvmOpts = make([]string, 0)
 	jmxDir := path.Join(constants.KubedoopRoot, "jmx")
 	jmxConfig := fmt.Sprintf("-javaagent:%s=%d:%s", path.Join(jmxDir, "jmx_prometheus_javaagent.jar"), metricsPort, path.Join(jmxDir, "config.yaml"))

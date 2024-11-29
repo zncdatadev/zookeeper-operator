@@ -49,13 +49,13 @@ func (r *Reconciler) RegisterResources(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	//rbac
+	// rbac
 	sa := NewServiceAccountReconciler(*r.Client, clusterLables)
 	r.AddResource(sa)
 	// rb := NewClusterRoleBindingReconciler(*r.Client, clusterLables)
 	// r.AddResource(rb)
 
-	//role
+	// role
 	// zkServerRole :
 	roleInfo := reconciler.RoleInfo{ClusterInfo: r.ClusterInfo, RoleName: string(common.Server)}
 	zkServerRole := server.NewReconciler(client, roleInfo, r.ClusterOperation, r.ClusterConfig, r.GetImage(), r.Spec.Server)
