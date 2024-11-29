@@ -181,7 +181,7 @@ func (p *PodHostDiscoveryBuilder) Name() string {
 // GetHosts implements Discovery.
 func (p *PodHostDiscoveryBuilder) GetHosts(_ context.Context) ([]string, error) {
 	roleGroupConnections := p.clusterStatus.ClientConnections
-	var connections []string
+	connections := make([]string, 0, len(roleGroupConnections))
 	for _, roleGroupConnection := range roleGroupConnections {
 		connections = append(connections, roleGroupConnection)
 	}

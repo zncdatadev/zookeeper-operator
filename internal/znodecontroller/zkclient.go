@@ -3,9 +3,10 @@ package znodecontroller
 import (
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/samuel/go-zookeeper/zk"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"time"
 )
 
 var logger = ctrl.Log.WithName("zk-client")
@@ -54,9 +55,9 @@ func GetConnect(zkList []string) (conn *zk.Conn, err error) {
 }
 
 func (z ZkClient) Create(path string, data []byte) error {
-	//flag == 0 is a persistent node
-	//flag == zk.FlagEphemeral is a ephemeral node
-	//flag == zk.FlagSequence is a sequence node
+	// flag == 0 is a persistent node
+	// flag == zk.FlagEphemeral is a ephemeral node
+	// flag == zk.FlagSequence is a sequence node
 	_, err := z.Client.Create(path, data, 0, zk.WorldACL(zk.PermAll))
 	if err != nil {
 		return err

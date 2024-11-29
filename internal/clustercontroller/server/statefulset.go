@@ -130,7 +130,7 @@ func (b *StatefulsetBuilder) Build(ctx context.Context) (ctrlClient.Object, erro
 	isServiceLinks := false
 	obj.Spec.Template.Spec.EnableServiceLinks = &isServiceLinks
 
-	//vector
+	// vector
 	if IsVectorEnable(b.RoleGroupConfig.Logging) {
 		ExtendWorkloadByVector(b.GetImage(), obj, b.Name)
 	}

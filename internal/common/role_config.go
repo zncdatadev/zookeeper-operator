@@ -148,7 +148,7 @@ func (n *ZookeeperConfig) MergeDefaultConfig(
 		}
 	}
 
-	//affinity
+	// affinity
 	if mergedRoleGroupSpec.Affinity == nil {
 		defaultAffinityJsonRaw, err := json.Marshal(n.common.Affinity)
 		if err != nil {

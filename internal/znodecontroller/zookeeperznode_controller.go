@@ -83,7 +83,7 @@ func (r *ZookeeperZnodeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// reconcile order by "cluster -> role -> role-group -> resource"
 	result, chroot, err := NewZNodeReconciler(r.Scheme, znode, r.Client, zkSecurity).reconcile(ctx, zkCluster)
 
-	//setup finalizer
+	// setup finalizer
 	if err := r.setupFinalizer(znode, zkCluster, ctx, chroot, int32(zkSecurity.ClientPort())); err != nil {
 		return ctrl.Result{}, err
 	}

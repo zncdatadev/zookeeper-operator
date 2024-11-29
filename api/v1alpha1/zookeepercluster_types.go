@@ -88,7 +88,7 @@ type ZookeeperClusterStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // ZookeeperClusterList contains a list of ZookeeperCluster
 type ZookeeperClusterList struct {
