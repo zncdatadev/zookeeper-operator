@@ -1,6 +1,6 @@
 # Kubedoop Operator for Apache Zookeeper
 
-[![Build](https://github.com/zncdatadev/zookeeper-operator/actions/workflows/main.yml/badge.svg)](https://github.com/zncdatadev/zookeeper-operator/actions/workflows/main.yml)
+[![Build](https://github.com/zncdatadev/zookeeper-operator/actions/workflows/publish.yml/badge.svg)](https://github.com/zncdatadev/zookeeper-operator/actions/workflows/publish.yml)
 [![LICENSE](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Go Report Card](https://goreportcard.com/badge/github.com/zncdatadev/zookeeper-operator)](https://goreportcard.com/report/github.com/zncdatadev/zookeeper-operator)
 [![Artifact HUB](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/zookeeper-operator)](https://artifacthub.io/packages/helm/kubedoop/zookeeper-operator)
