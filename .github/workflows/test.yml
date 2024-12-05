@@ -29,7 +29,7 @@ jobs:
 
   chainsaw-test:
     name: Chainsaw Test
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       matrix:
         k8s-version: [
@@ -68,6 +68,5 @@ jobs:
           KIND_K8S_VERSION: ${{ matrix.k8s-version }}
           KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
           KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
-          PRODUCT_VERSION: ${{ matrix.product-version }}
           PRODUCT_VERSION: ${{ matrix.product-version }}
         run: make chainsaw-test
