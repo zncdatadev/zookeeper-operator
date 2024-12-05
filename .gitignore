@@ -28,6 +28,7 @@ Dockerfile.cross
 kind-kubeconfig*
 
 *-local.yaml
+*-local.*
 
 # test
 ginkgo.report
