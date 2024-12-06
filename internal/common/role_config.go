@@ -83,8 +83,8 @@ func DefaultServerConfig(clusterName string) ZookeeperConfig {
 func defaultResources() *commonsv1alpha1.ResourcesSpec {
 	return &commonsv1alpha1.ResourcesSpec{
 		CPU: &commonsv1alpha1.CPUResource{
-			Max: *parseQuantity("800m"),
-			Min: *parseQuantity("200m"),
+			Max: *parseQuantity("200m"),
+			Min: *parseQuantity("100m"),
 		},
 		Memory: &commonsv1alpha1.MemoryResource{
 			Limit: *parseQuantity("512Mi"),
