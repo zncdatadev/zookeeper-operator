@@ -1,7 +1,0 @@
-apiVersion: zookeeper.kubedoop.dev/v1alpha1
-kind: ZookeeperZnode
-metadata:
-  name: znode-foo
-spec:
-  clusterRef:
-    name: zk
