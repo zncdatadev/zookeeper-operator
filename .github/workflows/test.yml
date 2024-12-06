@@ -34,6 +34,7 @@ jobs:
       matrix:
         k8s-version: ['1.26.15', '1.27.16']
         product-version: ['3.9.2', '3.8.4']
+      max-parallel: 2
     steps:
       - name: Clone the code
         uses: actions/checkout@v4
