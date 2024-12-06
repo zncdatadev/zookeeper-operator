@@ -18,7 +18,7 @@ spec:
     config:
       resources:
         cpu:
-          max: 500m
+          max: 200m
           min: 100m
         memory:
           limit: 512Mi
@@ -45,7 +45,7 @@ spec:
               - name: server
                 resources:
                   requests:
-                    cpu: 300m
+                    cpu: 150m
                     memory: 400Mi
       secondary:
         replicas: 1
