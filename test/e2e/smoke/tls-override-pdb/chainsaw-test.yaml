@@ -1,0 +1,68 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: smoke-tls-override-pdb
+spec:
+  steps:
+  - name: install zookeeper
+    try:
+    # install zookeeper
+    - apply:
+        file: zk.yaml
+    - assert:
+        file: zk-assert.yaml
+  - name: test pdb
+    try:
+      - assert:
+          resource:
+            kind: PodDisruptionBudget
+            apiVersion: policy/v1
+            metadata:
+              name: test-zk-server
+              namespace: ($namespace)
+            spec:
+              maxUnavailable: 2
+            status:
+              expectedPods: 3
+              currentHealthy: 3
+              disruptionsAllowed: 2
+  - name: test env overrides
+    try:
+      - script:
+          bindings:
+            - name: NAMESPACE
+              value: ($namespace)
+          content: |
+            #!/bin/bash
+            kubectl -n $NAMESPACE get sts test-zk-server-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "server") | .env[] | select (.name == "COMMON_VAR" and .value == "group-value")'
+            kubectl -n $NAMESPACE get sts test-zk-server-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "server") | .env[] | select (.name == "GROUP_VAR" and .value == "group-value")'
+            kubectl -n $NAMESPACE get sts test-zk-server-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "server") | .env[] | select (.name == "ROLE_VAR" and .value == "role-value")'
+  - name: test config overrides
+    try:
+      - script:
+          bindings:
+            - name: NAMESPACE
+              value: ($namespace)
+          content: |
+            #!/bin/bash
+            # Check prop.common value
+            kubectl -n $NAMESPACE get cm test-zk-server-default -o yaml | yq -e '.data."zoo.cfg"' | grep -q "^prop.common=group$"
+
+            # Check prop.role value
+            kubectl -n $NAMESPACE get cm test-zk-server-default -o yaml | yq -e '.data."zoo.cfg"' | grep -q "^prop.role=group$"
+  - name: test tls
+    try:
+      - script:
+          bindings:
+            - name: NAMESPACE
+              value: ($namespace)
+          content: |
+            #!/bin/bash
+            kubectl -n $NAMESPACE cp ./test_tls.sh test-zk-server-default-0:/tmp --container='server'
+      - script:
+          bindings:
+            - name: NAMESPACE
+              value: ($namespace)
+          content: |
+            #!/bin/bash
+            kubectl -n $NAMESPACE exec test-zk-server-default-0 -c server -- /tmp/test_tls.sh $NAMESPACE
