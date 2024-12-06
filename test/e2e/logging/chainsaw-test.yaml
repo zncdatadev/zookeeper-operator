@@ -4,18 +4,23 @@ metadata:
   name: logging
 spec:
   steps:
-  - try:
+
+  - name: install aggregator
+    try:
     - apply:
         file: aggregator.yaml
     - assert:
         file: aggregator-assert.yaml
-  - try:
+  - name: install zookeeper
+    try:
     - apply:
         file: zk.yaml
     - assert:
         file: zk-assert.yaml
     - assert:
         file: zk-discovery-assert.yaml
+  - name: assert zk logs in aggregator
+    try:
     - script:
         env:
           - name: NAMESPACE
