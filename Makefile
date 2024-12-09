@@ -57,7 +57,7 @@ help: ## Display this help.
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=manager-role crd:generateEmbeddedObjectMeta=true webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -267,6 +267,7 @@ endif
 # Tool Versions
 KINDTEST_K8S_VERSION ?= 1.26.15
 CHAINSAW_VERSION ?= v0.2.11
+PRODUCT_VERSION ?= 3.9.2
 
 KIND_IMAGE ?= kindest/node:v${KINDTEST_K8S_VERSION}
 KIND_KUBECONFIG ?= ./kind-kubeconfig-$(KINDTEST_K8S_VERSION)
@@ -320,7 +321,7 @@ chainsaw-setup: ## Run the chainsaw setup
 
 .PHONY: chainsaw-test
 chainsaw-test: chainsaw ## Run the chainsaw test
-	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --cluster cluster-1=$(KIND_KUBECONFIG) --test-dir ./test/e2e/
+	echo "product_version: $(PRODUCT_VERSION)" | KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --cluster cluster-1=$(KIND_KUBECONFIG) --test-dir ./test/e2e/ --values -
 
 .PHONY: chainsaw-cleanup
 chainsaw-cleanup: ## Run the chainsaw cleanup
