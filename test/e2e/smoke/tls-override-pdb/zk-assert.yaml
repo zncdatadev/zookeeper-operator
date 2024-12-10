@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-zk-server-default
+spec:
+  template:
+    spec:
+      containers:
+        - name: server
+status:
+  availableReplicas: 2
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-zk-server-secondary
+status:
+  availableReplicas: 1
