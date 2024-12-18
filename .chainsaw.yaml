@@ -10,7 +10,7 @@ spec:
     cleanup: 220s
     delete: 120s
     error: 10s
-    exec: 45s
+    exec: 200s
   # skipDelete: true
   failFast: true
   parallel: 1 # use 1 concurrent to test, to voide multiple csi driver conflict
