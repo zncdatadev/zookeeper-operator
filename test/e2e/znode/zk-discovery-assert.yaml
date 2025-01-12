@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: znode-foo
+  name: zookeepercluster-sample
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: znode-foo-nodeport
+  name: zookeepercluster-sample-nodeport

@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: sample-znode
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: sample-znode-nodeport

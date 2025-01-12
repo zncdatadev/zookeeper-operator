@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sample-znode
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sample-znode-nodeport
+---
+apiVersion: zookeeper.kubedoop.dev/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  finalizers:
+  - znode.kubedoop.dev/delete-znode
+  name: sample-znode
+spec:
+  clusterRef:
+    name: zookeepercluster-sample

@@ -1,0 +1,48 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: znode
+spec:
+  bindings:
+    - name: zookeeper_version
+      value: ($values.product_version) # 3.9.2 OR 3.8.4
+  steps:
+  - name: install zk
+    try:
+    # install zookeeper
+    - apply:
+        file: zk.yaml
+    - assert:
+        file: zk-assert.yaml
+    - assert:
+        file: zk-discovery-assert.yaml
+  - name: assert znode
+    try:
+    - apply:
+        file: znode.yaml
+    - assert:
+        file: znode-assert.yaml
+    - script:
+        env:
+          - name: NAMESPACE
+            value: ($namespace)
+        content: |
+          #!/bin/bash
+          # Get znode discovery's configmap data and check the znode path
+
+          # Get the znode uid
+          znode_uid=$(kubectl -n $NAMESPACE get znode sample-znode -o jsonpath='{.metadata.uid}')
+          expected_path="/znode-${znode_uid}"
+
+          echo "expect znode path: $expected_path"
+
+          kubectl -n $NAMESPACE get cm sample-znode -o jsonpath='{.data.ZOOKEEPER_CHROOT}' | grep -q $expected_path
+          exit_code=$?
+
+          if [ $exit_code -eq 0 ]; then
+            echo "Found expected znode path"
+            exit 0
+          else
+            echo "Did not find expected znode path"
+            exit 1
+          fi
