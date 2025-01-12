@@ -1,7 +1,6 @@
 module github.com/zncdatadev/zookeeper-operator
 
 go 1.23.2
-
 require (
 	emperror.dev/errors v0.8.1
 	github.com/go-logr/logr v1.4.2
@@ -10,14 +9,14 @@ require (
 	github.com/samuel/go-zookeeper v0.0.0-20201211165307-7117e9ea2414
 	// github.com/zncdatadev/operator-go v0.12.0
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
-	k8s.io/api v0.31.3
-	k8s.io/apimachinery v0.31.3
-	k8s.io/client-go v0.31.3
+	k8s.io/api v0.31.4
+	k8s.io/apimachinery v0.31.4
+	k8s.io/client-go v0.31.4
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
 	sigs.k8s.io/controller-runtime v0.19.3
 )
 
-require github.com/zncdatadev/operator-go v0.12.1-0.20241204121924-b55bf9a24940
+require github.com/zncdatadev/operator-go v0.12.2
 
 require (
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
