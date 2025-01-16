@@ -32,7 +32,14 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        k8s-version: ['1.26.15', '1.27.16']
+        k8s-version: [
+          '1.26.15',
+          '1.27.16',
+          '1.28.15',
+          '1.29.12',
+          '1.30.8',
+          '1.31.4',
+        ]
         product-version: ['3.9.2', '3.8.4']
       max-parallel: 2
     steps:
