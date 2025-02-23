@@ -79,7 +79,7 @@ export CLIENT_JVMFLAGS="
 -Dzookeeper.ssl.trustStore.password=${QUORUM_STORE_SECRET}"
 
 output=$(/kubedoop/zookeeper/bin/zkCli.sh -server "${SERVER}" ls / 2>&1)
-if [ $? -ne 0 ]; then
+if [ $? -eq 0 ]; then
   echo "[ERROR] Could establish secure connection with quorum certificates (should not be happening)!"
   echo "Command output:"
   echo "----------------------------------------"
