@@ -80,7 +80,6 @@ export CLIENT_JVMFLAGS="
 
 output=$(/kubedoop/zookeeper/bin/zkCli.sh -server "${SERVER}" ls / 2>&1)
 if [ $? -ne 0 ]; then
-then
   echo "[ERROR] Could establish secure connection with quorum certificates (should not be happening)!"
   echo "Command output:"
   echo "----------------------------------------"
