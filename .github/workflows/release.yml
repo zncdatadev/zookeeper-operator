@@ -41,7 +41,7 @@ jobs:
       - name: Run linter
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.61
+          version: v1.63
 
   golang-test:
     name: Golang Test
@@ -74,6 +74,7 @@ jobs:
           # '1.30.8',
           '1.31.4',
         ]
+        product-version: ['3.9.2', '3.8.4']
     steps:
       - name: Clone the code
         uses: actions/checkout@v4
@@ -85,23 +86,21 @@ jobs:
 
       - name: Create KinD clustet pur
         env:
-          KINDTEST_K8S_VERSION: ${{ matrix.k8s-version}}
+          KIND_K8S_VERSION: ${{ matrix.k8s-version}}
           KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
-          KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
         run: make kind-create
 
       - name: Chainsaw test setup
         env:
-          KINDTEST_K8S_VERSION: ${{ matrix.k8s-version }}
+          KIND_K8S_VERSION: ${{ matrix.k8s-version }}
           KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
-          KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
         run: make chainsaw-setup
 
       - name: Test with Chainsaw
         env:
-          KINDTEST_K8S_VERSION: ${{ matrix.k8s-version }}
+          KIND_K8S_VERSION: ${{ matrix.k8s-version }}
           KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
-          KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
+          PRODUCT_VERSION: ${{ matrix.product-version }}
         run: make chainsaw-test
 
 
