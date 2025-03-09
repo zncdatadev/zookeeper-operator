@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/zncdatadev/operator-go/pkg/client"
+	"github.com/zncdatadev/operator-go/pkg/constants"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/clustercontroller/cluster"
@@ -72,6 +73,16 @@ func (r *ZookeeperClusterReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, err
 	}
 	logger.V(1).Info("ZookeeperCluster found", "namespace", instance.Namespace, "name", instance.Name)
+
+	clusterConfig := instance.Spec.ClusterConfig
+	if clusterConfig == nil {
+		logger.Info("ClusterConfig is nil")
+		clusterConfig = &zkv1alpha1.ClusterConfigSpec{
+			ListenerClass: constants.ClusterInternal,
+			MinServerId:   1,
+		}
+		instance.Spec.ClusterConfig = clusterConfig
+	}
 
 	resourceClient := &client.Client{
 		Client:         r.Client,
