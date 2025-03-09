@@ -8,9 +8,9 @@ spec:
   clusterOperation:
     reconciliationPaused: ($cluster_paused)
     stopped: ($cluster_stopped)
-  clusterConfig:
-    listenerClass: cluster-internal
-  servers:
+  # clusterConfig:
+  #   listenerClass: cluster-internal
+  server:
     roleConfig:
       podDisruptionBudget:
         maxUnavailable: 1
