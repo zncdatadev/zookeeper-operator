@@ -285,8 +285,8 @@ func (in *ZookeeperClusterSpec) DeepCopyInto(out *ZookeeperClusterSpec) {
 		*out = new(ClusterConfigSpec)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.Server != nil {
-		in, out := &in.Server, &out.Server
+	if in.Servers != nil {
+		in, out := &in.Servers, &out.Servers
 		*out = new(ServerSpec)
 		(*in).DeepCopyInto(*out)
 	}

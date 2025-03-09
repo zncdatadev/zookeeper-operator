@@ -8,7 +8,7 @@ spec:
     productVersion: ($values.product_version)
   clusterConfig:
     listenerClass: cluster-internal
-  server:
+  servers:
     roleGroups:
       primary:
         replicas: 1

@@ -39,7 +39,7 @@ spec:
     # tls:
     #   quorumSecretClass: tls
     #   serverSecretClass: tls
-  server:
+  servers:
     roleGroups:
       default:
         replicas: 2

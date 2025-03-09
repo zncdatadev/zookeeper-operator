@@ -106,7 +106,7 @@ type ZookeeperClusterSpec struct {
 	// +kubebuilder:validation:Optional
 	ClusterConfig *ClusterConfigSpec `json:"clusterConfig,omitempty"`
 	// +kubebuilder:validation:Required
-	Server *ServerSpec `json:"server"`
+	Servers *ServerSpec `json:"servers"`
 }
 
 type ClusterConfigSpec struct {

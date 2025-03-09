@@ -7,7 +7,7 @@ spec:
     productVersion: ($values.product_version)
   clusterConfig:
     listenerClass: cluster-internal
-  server:
+  servers:
     roleConfig:
       podDisruptionBudget:
         maxUnavailable: 1
