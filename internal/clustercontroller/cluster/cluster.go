@@ -58,7 +58,7 @@ func (r *Reconciler) RegisterResources(ctx context.Context) error {
 	// role
 	// zkServerRole :
 	roleInfo := reconciler.RoleInfo{ClusterInfo: r.ClusterInfo, RoleName: string(common.Server)}
-	zkServerRole := server.NewReconciler(client, roleInfo, r.ClusterOperation, r.ClusterConfig, r.GetImage(), r.Spec.Server)
+	zkServerRole := server.NewReconciler(client, roleInfo, r.ClusterOperation, r.ClusterConfig, r.GetImage(), r.Spec.Servers)
 	if err := zkServerRole.RegisterResources(ctx); err != nil {
 		return err
 	}

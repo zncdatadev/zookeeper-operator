@@ -10,7 +10,7 @@ spec:
     tls:
       quorumSecretClass: tls
       serverSecretClass: zk-client-secret   # tls
-  server:
+  servers:
     roleConfig:
       podDisruptionBudget: # pdb
         enabled: true
