@@ -89,6 +89,5 @@ if [ $? -eq 0 ]; then
 fi
 echo "[SUCCESS] Could not establish secure connection with (wrong) quorum certificates!"
 
-
 echo "All TLS tests successful!"
 exit 0
