@@ -10,7 +10,7 @@ spec:
     stopped: ($cluster_stopped)
   # clusterConfig:
   #   listenerClass: cluster-internal
-  server:
+  servers:
     roleConfig:
       podDisruptionBudget:
         maxUnavailable: 1
