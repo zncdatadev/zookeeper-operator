@@ -8,12 +8,9 @@ import (
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/productlogging"
 	"github.com/zncdatadev/operator-go/pkg/util"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
+	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 )
 
 var vectorLogger = ctrl.Log.WithName("vector")
@@ -25,7 +22,6 @@ func IsVectorEnable(roleLoggingConfig *commonsv1alpha1.LoggingSpec) bool {
 		return *roleLoggingConfig.EnableVectorAgent
 	}
 	return false
-
 }
 
 type VectorConfigParams struct {
@@ -58,65 +54,14 @@ func ExtendConfigMapByVector(ctx context.Context, params VectorConfigParams, dat
 	}
 }
 
-// ExtendWorkloadByVector extends a StatefulSet by adding a vector container, a vector config volume and a vector data volume.
-// It also mounts the vector data volume to the vector container.
-// The vector container is added to the StatefulSet's template.
-// The vector config volume is added to the StatefulSet's template spec volumes.
-// The vector data volume is added to the StatefulSet's template spec volumes.
-// The vector data volume is mounted to the vector container at /kubedoop/vector/var.
-func ExtendWorkloadByVector(
+// GetVectorFactory returns a new vector factory
+// can provide vector container, volumes
+func GetVectorFactory(
 	image *util.Image,
-	dep *appsv1.StatefulSet,
-	vectorConfigMapName string) {
-	decorator := builder.NewVectorDecorator(dep, image, zkv1alpha1.LogDirName, zkv1alpha1.ConfigDirName, vectorConfigMapName)
-	err := decorator.Decorate()
-	if err != nil {
-		vectorLogger.Error(
-			errors.Wrap(err, "error occurred while decorating the StatefulSet with vector configuration"),
-			"failed to decorate StatefulSet", "statefulSetName", dep.Name, "namespace", dep.Namespace,
-		)
-		return
-	}
-
-	var vectorContainer *corev1.Container
-	for i, container := range dep.Spec.Template.Spec.Containers {
-		if container.Name == ContainerVector {
-			vectorContainer = &dep.Spec.Template.Spec.Containers[i]
-			break
-		}
-	}
-	if vectorContainer == nil {
-		return
-	}
-
-	vectorDataVolumeName := "vector-data"
-
-	// todo: update operator to to support kubedoop vector
-	// check if volume exists
-	for _, volume := range dep.Spec.Template.Spec.Volumes {
-		if volume.Name == vectorDataVolumeName {
-			return
-		}
-	}
-
-	// add emptydir volume
-	dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes, corev1.Volume{
-		Name: "vector-data",
-		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
-		},
-	})
-
-	// check if volume mount exists
-	for _, volumeMount := range vectorContainer.VolumeMounts {
-		if volumeMount.Name == vectorDataVolumeName {
-			return
-		}
-	}
-
-	// mount emptydir with data to /kubedoop/vector/var
-	vectorContainer.VolumeMounts = append(vectorContainer.VolumeMounts, corev1.VolumeMount{
-		Name:      vectorDataVolumeName,
-		MountPath: "/kubedoop/vector/var",
-	})
+) *builder.Vector {
+	return builder.NewVector(
+		zkv1alpha1.ConfigDirName,
+		zkv1alpha1.LogDirName,
+		image,
+	)
 }

@@ -103,6 +103,15 @@ func (b *StatefulsetBuilder) Build(ctx context.Context) (ctrlClient.Object, erro
 	b.AddInitContainer(b.buildInitContainer())
 	b.AddVolumes(b.getVolumes())
 	b.AddVolumeClaimTemplate(b.createVolumeClaimTemplate())
+	// vector
+	if IsVectorEnable(b.RoleGroupConfig.Logging) {
+		vectorFactory := GetVectorFactory(b.GetImage())
+		b.AddContainer(vectorFactory.GetContainer())
+		b.AddVolumes(vectorFactory.GetVolumes())
+	}
+
+	// apend pos host connection to instance status
+	b.appendClientConnections(ctx)
 
 	obj, err := b.GetObject()
 	if err != nil {
@@ -130,13 +139,6 @@ func (b *StatefulsetBuilder) Build(ctx context.Context) (ctrlClient.Object, erro
 	isServiceLinks := false
 	obj.Spec.Template.Spec.EnableServiceLinks = &isServiceLinks
 
-	// vector
-	if IsVectorEnable(b.RoleGroupConfig.Logging) {
-		ExtendWorkloadByVector(b.GetImage(), obj, b.Name)
-	}
-
-	// apend pos host connection to instance status
-	b.appendClientConnections(ctx)
 	return obj, nil
 }
 
