@@ -124,7 +124,7 @@ type ClusterConfigSpec struct {
 
 	// +kubebuilder:validation:Optional
 	// +default:value=[]
-	Authentication *AuthenticationSpec `json:"authentication,omitempty"`
+	Authentication []AuthenticationSpec `json:"authentication,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	// +default:value={"quorumSecretClass": "tls", "serverSecretClass": "tls"}
@@ -140,12 +140,13 @@ type ClusterConfigSpec struct {
 }
 
 type AuthenticationSpec struct {
-	//
 	// Only affects client connections. This setting controls:
 	// - If clients need to authenticate themselves against the server via TLS
 	// - Which ca.crt to use when validating the provided client certs
+	//
 	// This will override the server TLS settings (if set) in `spec.clusterConfig.tls.serverSecretClass`.
-	AuthenticationClass []string `json:"authenticationClass,omitempty"`
+	// +kubebuilder:validation:Required
+	AuthenticationClass string `json:"authenticationClass"`
 }
 
 // ZookeeperTls defines the tls setting for zookeeper cluster
