@@ -41,7 +41,7 @@ func TransformImage(imageSpec *ImageSpec) *util.Image {
 	if imageSpec == nil {
 		return util.NewImage(DefaultProductName, DefaultKubedoopVersion, DefaultProductVersion)
 	}
-	var pullPolicy corev1.PullPolicy = corev1.PullIfNotPresent
+	var pullPolicy = corev1.PullIfNotPresent
 	if imageSpec.PullPolicy != nil {
 		pullPolicy = *imageSpec.PullPolicy
 	}

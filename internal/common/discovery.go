@@ -124,7 +124,7 @@ func (c *DiscoveryBuilder) Build(ctx context.Context) (ctrlclient.Object, error)
 
 func (c *DiscoveryBuilder) MakeData(hosts []string) map[string]string {
 	connectionHosts := c.getAccessHosts(hosts)
-	var zkChroot string = ""
+	var zkChroot = ""
 	if c.chroot != nil {
 		zkChroot = *c.chroot
 	}
@@ -204,7 +204,7 @@ func (n *NodePortDiscoveryBuilder) Name() string {
 
 // GetHosts implements Discovery.
 func (n *NodePortDiscoveryBuilder) GetHosts(ctx context.Context) ([]string, error) {
-	cli := n.ConfigMapBuilder.GetClient()
+	cli := n.GetClient()
 	ns := cli.GetOwnerNamespace()
 	// 1. get node port service
 	svc := &corev1.Service{
