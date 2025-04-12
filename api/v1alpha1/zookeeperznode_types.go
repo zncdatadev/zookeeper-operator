@@ -29,8 +29,13 @@ type ZookeeperZnode struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ZookeeperZnodeSpec     `json:"spec,omitempty"`
-	Status ZookeeperClusterStatus `json:"status,omitempty"`
+	Spec   ZookeeperZnodeSpec `json:"spec,omitempty"`
+	Status ZnodeStatus        `json:"status,omitempty"`
+}
+
+type ZnodeStatus struct {
+	// +kubebuilder:validation:Optional
+	ZnodePath string `json:"znodePath,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -110,23 +110,24 @@ type ZookeeperClusterSpec struct {
 }
 
 type ClusterConfigSpec struct {
+	// Which type of service to use for the Zookeeper cluster.
+	//  - cluster-internal: use ClusterIP service
+	//  - external-unstable: use NodePort service
 	// +kubebuilder:validation:optional
 	// +kubebuilder:validation:Enum="cluster-internal";"external-unstable"
 	// +kubebuilder:default="cluster-internal"
 	ListenerClass constants.ListenerClass `json:"listenerClass"`
 
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default:="cluster.local"
-	ClusterDomain string `json:"clusterDomain,omitempty"`
-
-	// +kubebuilder:validation:Optional
 	// +kubebuilder:default:=1
 	MinServerId int32 `json:"minServerId,omitempty"`
 
 	// +kubebuilder:validation:Optional
+	// +default:value=[]
 	Authentication *AuthenticationSpec `json:"authentication,omitempty"`
 
 	// +kubebuilder:validation:Optional
+	// +default:value={"quorumSecretClass": "tls", "serverSecretClass": "tls"}
 	Tls *ZookeeperTls `json:"tls,omitempty"`
 
 	// Name of the Vector aggregator [discovery ConfigMap].
@@ -139,8 +140,6 @@ type ClusterConfigSpec struct {
 }
 
 type AuthenticationSpec struct {
-	//
-	// ## mTLS
 	//
 	// Only affects client connections. This setting controls:
 	// - If clients need to authenticate themselves against the server via TLS
@@ -157,7 +156,6 @@ type ZookeeperTls struct {
 	// - Which cert the servers should use to authenticate themselves against other servers
 	// - Which ca.crt to use when validating the other server
 	// Defaults to `tls`
-
 	// +kubebuilder:validation:Required
 	// +kubebuilder:default=tls
 	QuorumSecretClass string `json:"quorumSecretClass,omitempty"`
@@ -167,18 +165,15 @@ type ZookeeperTls struct {
 	// - If TLS encryption is used at all
 	// - Which cert the servers should use to authenticate themselves against the client
 	// Defaults to `tls`.
-
 	// +kubebuilder:validation:Optional
 	ServerSecretClass string `json:"serverSecretClass,omitempty"`
-
-	// todo: use secret resource
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default="changeit"
-	SSLStorePassword string `json:"sslStorePassword,omitempty"`
 }
 
 type ServerSpec struct {
+	*commonsv1alpha1.OverridesSpec `json:",inline"`
+
 	// +kubebuilder:validation:Optional
+	// +default:value={}
 	Config *ConfigSpec `json:"config,omitempty"`
 
 	// +kubebuilder:validation:Optional
@@ -187,7 +182,24 @@ type ServerSpec struct {
 	// +kubebuilder:validation:Optional
 	RoleConfig *commonsv1alpha1.RoleConfigSpec `json:"roleConfig,omitempty"`
 
-	*commonsv1alpha1.OverridesSpec `json:",inline"`
+	// Overrides for the default JVM arguments.
+	// +kubebuilder:validation:Optional
+	// +default:value={"add": [], "remove": [], "removeRegex": []}
+	JVMArgumentOverrides *JVMArgumentOverridesSpec `json:"jvmArgumentOverrides,omitempty"`
+}
+
+type JVMArgumentOverridesSpec struct {
+	// JVM arguments to add to the default JVM arguments.
+	// +kubebuilder:validation:Optional
+	Add []string `json:"add,omitempty"`
+
+	// JVM arguments to remove from the default JVM arguments.
+	// +kubebuilder:validation:Optional
+	Remove []string `json:"remove,omitempty"`
+
+	// Any of regular expressions to match JVM arguments to remove from the default JVM arguments.
+	// +kubebuilder:validation:Optional
+	RemoveRegex []string `json:"removeRegex,omitempty"`
 }
 
 type RoleGroupSpec struct {
@@ -205,10 +217,20 @@ type ConfigSpec struct {
 	*commonsv1alpha1.RoleGroupConfigSpec `json:",inline"`
 
 	// +kubebuilder:validation:Optional
-	ExtraEnv map[string]string `json:"extraEnv,omitempty"`
+	// +kubebuilder:validation:Minimum=0.0
+	MyidOffset int16 `json:"myidOffset,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	ExtraSecret map[string]string `json:"extraSecret,omitempty"`
+	// +kubebuilder:validation:Minimum=0.0
+	InitLimit int32 `json:"initLimit,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=0.0
+	SyncLimit int32 `json:"syncLimit,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=0.0
+	TickTime int32 `json:"tickTime,omitempty"`
 }
 
 func init() {
