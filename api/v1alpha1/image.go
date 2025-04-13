@@ -13,13 +13,14 @@ const (
 	DefaultKubedoopVersion = "0.0.0-dev"
 )
 
+// +k8s:openapi-gen=true
 type ImageSpec struct {
 	// +kubebuilder:validation:Optional
 	Custom string `json:"custom,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=quay.io/zncdatadev
-	Repo string `json:"repository,omitempty"`
+	Repo string `json:"repo,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default="0.0.0-dev"
@@ -31,6 +32,7 @@ type ImageSpec struct {
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default:=IfNotPresent
+	// +kubebuilder:validation:Enum=IfNotPresent;Always;Never
 	PullPolicy *corev1.PullPolicy `json:"pullPolicy,omitempty"`
 
 	// +kubebuilder:validation:Optional
