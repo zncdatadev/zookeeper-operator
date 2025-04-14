@@ -87,7 +87,7 @@ func defaultResources() *commonsv1alpha1.ResourcesSpec {
 			Min: *parseQuantity("100m"),
 		},
 		Memory: &commonsv1alpha1.MemoryResource{
-			Limit: *parseQuantity("512Mi"),
+			Limit: *parseQuantity("1Gi"),
 		},
 		Storage: &commonsv1alpha1.StorageResource{
 			Capacity: *parseQuantity("1Gi"),
