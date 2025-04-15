@@ -159,7 +159,7 @@ func (d *discovery) GetZookeeperConnection(ctx context.Context) (*ZookeeperConne
 
 	zkconn := &ZookeeperConnection{
 		// uri example: "host1:port,host2:port,host3:port/znode"
-		URI:   fmt.Sprintf("%s:%d%s", strings.Join(hosts, ","), d.zkSecurity.ClientPort(), znode),
+		URI:   fmt.Sprintf("%s%s", strings.Join(hosts, ","), znode),
 		Hosts: hosts,
 		Port:  int32(d.zkSecurity.ClientPort()),
 		ZNode: znode,
