@@ -56,14 +56,13 @@ func (z *ZNodeReconciler) reconcile(ctx context.Context, cluster *zkv1alpha1.Zoo
 	znodeLogger.Info("create configmap for zookeeper discovery", "namaspace", z.instance.Namespace,
 		"name", z.instance.Name, "path", znodePath)
 	client := client.NewClient(z.client, z.instance)
-	listenerClass := cluster.Spec.ClusterConfig.ListenerClass
 	gvk := z.instance.GetObjectKind().GroupVersionKind()
 	clusterInfo := reconciler.ClusterInfo{GVK: &metav1.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind}, ClusterName: z.instance.Name}
-	discoveries := common.NewDiscoveries(
+	discoveryReconcilers := common.NewDiscoveryReconcilers(
 		ctx,
-		zkv1alpha1.ListenerClass(listenerClass),
 		client,
-		cluster,
+		clusterInfo,
+		&cluster.Spec,
 		&znodePath,
 		z.zkSecurity,
 		func(o *builder.Options) {
@@ -71,7 +70,7 @@ func (z *ZNodeReconciler) reconcile(ctx context.Context, cluster *zkv1alpha1.Zoo
 			o.Annotations = clusterInfo.GetAnnotations()
 		},
 	)
-	res, err := z.reconcileDiscovery(ctx, discoveries)
+	res, err := z.reconcileDiscovery(ctx, discoveryReconcilers)
 	if err != nil {
 		znodeLogger.Error(err, "create configmap for zookeeper discovery error",
 			"namaspace", z.instance.Namespace, "discovery owner", z.instance.Name, "path", znodePath)

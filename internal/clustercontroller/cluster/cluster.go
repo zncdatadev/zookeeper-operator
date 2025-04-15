@@ -69,13 +69,11 @@ func (r *Reconciler) RegisterResources(ctx context.Context) error {
 	svc := NewClusterServiceReconciler(r.Client, r.ClusterInfo, listenerClass, zkSecurity)
 	r.AddResource(svc)
 
-	// discovery
-	listnerClass := r.ClusterConfig.ListenerClass
-	dicoveries := common.NewDiscoveries(
+	discoveryReconcilers := common.NewDiscoveryReconcilers(
 		ctx,
-		zkv1alpha1.ListenerClass(listnerClass),
 		client,
-		nil,
+		r.ClusterInfo,
+		r.Spec,
 		nil,
 		zkSecurity,
 		func(o *builder.Options) {
@@ -83,8 +81,8 @@ func (r *Reconciler) RegisterResources(ctx context.Context) error {
 			o.Annotations = annotations
 		},
 	)
-	if len(dicoveries) != 0 {
-		for _, d := range dicoveries {
+	if len(discoveryReconcilers) != 0 {
+		for _, d := range discoveryReconcilers {
 			r.AddResource(d)
 		}
 	}
