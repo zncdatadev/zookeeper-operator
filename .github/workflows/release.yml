@@ -64,6 +64,7 @@ jobs:
     name: Chainsaw Test
     runs-on: ubuntu-latest
     strategy:
+      max-parallel: 2
       matrix:
         k8s-version: [
           '1.26.15',
