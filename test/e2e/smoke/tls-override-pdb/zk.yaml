@@ -9,7 +9,7 @@ spec:
     listenerClass: external-unstable
     tls:
       quorumSecretClass: tls
-      serverSecretClass: zk-client-secret   # tls
+      serverSecretClass: tls
   servers:
     roleConfig:
       podDisruptionBudget: # pdb
@@ -21,7 +21,7 @@ spec:
           max: 200m
           min: 100m
         memory:
-          limit: 512Mi
+          limit: 1Gi
     envOverrides:
       COMMON_VAR: role-value # override by group below
       ROLE_VAR: role-value   # only defined here at role level
@@ -45,20 +45,7 @@ spec:
               - name: server
                 resources:
                   requests:
-                    cpu: 150m
-                    memory: 400Mi
+                    cpu: 300m
+                    memory: 800Mi
       secondary:
         replicas: 1
----
-apiVersion: secrets.kubedoop.dev/v1alpha1
-kind: SecretClass
-metadata:
-  name: zk-client-secret
-spec:
-  backend:
-    autoTls:
-      ca:
-        secret:
-          name: secret-provisioner-tls-ca
-          namespace: default
-        autoGenerate: true
