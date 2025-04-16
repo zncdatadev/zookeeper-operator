@@ -39,14 +39,3 @@ spec:
             echo "Did not find expected log pattern"
             exit 1
           fi
-    cleanup:
-    - sleep:
-        duration: 50s
-  # - try:
-  #   - apply:
-  #       file: znode.yaml
-  #   - assert:
-  #       file: znode-assert.yaml
-    # cleanup:
-    # - sleep:
-    #     duration: 50s

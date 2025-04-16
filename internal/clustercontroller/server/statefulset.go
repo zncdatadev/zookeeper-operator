@@ -110,9 +110,6 @@ func (b *StatefulsetBuilder) Build(ctx context.Context) (ctrlClient.Object, erro
 		b.AddVolumes(vectorFactory.GetVolumes())
 	}
 
-	// apend pos host connection to instance status
-	b.appendClientConnections(ctx)
-
 	obj, err := b.GetObject()
 	if err != nil {
 		return nil, err
@@ -140,27 +137,6 @@ func (b *StatefulsetBuilder) Build(ctx context.Context) (ctrlClient.Object, erro
 	obj.Spec.Template.Spec.EnableServiceLinks = &isServiceLinks
 
 	return obj, nil
-}
-
-// append client connections to status of instance
-func (b *StatefulsetBuilder) appendClientConnections(ctx context.Context) {
-	stsName := b.Name
-	svcName := b.Name
-	clientPort := b.zkSecurity.ClientPort()
-	replicas := b.GetReplicas()
-	connection := common.CreateClientConnectionString(stsName, *replicas, int32(clientPort), svcName, b.GetObjectMeta().Namespace)
-
-	instance := b.GetClient().GetOwnerReference().(*zkv1alpha1.ZookeeperCluster)
-	statusConnections := instance.Status.ClientConnections
-	roleName := b.RoleName
-	if statusConnections == nil {
-		statusConnections = make(map[string]string)
-	}
-	statusConnections[roleName] = connection
-	instance.Status.ClientConnections = statusConnections
-	if err := b.Client.GetCtrlClient().Status().Update(ctx, instance); err != nil {
-		logger.Error(err, "failed to update instance status", "namespace", instance.Namespace, "name", instance.Name)
-	}
 }
 
 func (b *StatefulsetBuilder) buildContainers() []corev1.Container {

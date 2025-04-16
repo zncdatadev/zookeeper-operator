@@ -56,30 +56,35 @@ func (z *ZNodeReconciler) reconcile(ctx context.Context, cluster *zkv1alpha1.Zoo
 	znodeLogger.Info("create configmap for zookeeper discovery", "namaspace", z.instance.Namespace,
 		"name", z.instance.Name, "path", znodePath)
 	client := client.NewClient(z.client, z.instance)
-	listenerClass := cluster.Spec.ClusterConfig.ListenerClass
 	gvk := z.instance.GetObjectKind().GroupVersionKind()
 	clusterInfo := reconciler.ClusterInfo{GVK: &metav1.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind}, ClusterName: z.instance.Name}
-	discoveries := common.NewDiscoveries(
+	discoveryReconcilers := common.NewDiscoveryReconcilers(
 		ctx,
-		zkv1alpha1.ListenerClass(listenerClass),
 		client,
 		cluster,
-		&znodePath,
 		z.zkSecurity,
+		&common.ZNodeInfo{
+			Name:      z.instance.Name,
+			Namespace: z.instance.Namespace,
+			ZNodePath: znodePath,
+		},
 		func(o *builder.Options) {
 			o.Labels = clusterInfo.GetLabels()
 			o.Annotations = clusterInfo.GetAnnotations()
 		},
 	)
-	res, err := z.reconcileDiscovery(ctx, discoveries)
+	res, err := z.reconcileDiscovery(ctx, discoveryReconcilers)
 	if err != nil {
 		znodeLogger.Error(err, "create configmap for zookeeper discovery error",
 			"namaspace", z.instance.Namespace, "discovery owner", z.instance.Name, "path", znodePath)
 		return ctrl.Result{}, "", err
 	}
-	if res.RequeueAfter > 0 {
-		return res, "", nil
+	if !res.IsZero() {
+		znodeLogger.V(1).Info("reconcile discovery result", "requeueAfter", res.RequeueAfter)
+		return res, znodePath, nil
 	}
+
+	znodeLogger.V(1).Info("znode reconciled successfully", "namespace", z.instance.Namespace, "name", z.instance.Name, "znode path", znodePath)
 	return ctrl.Result{}, znodePath, nil
 }
 

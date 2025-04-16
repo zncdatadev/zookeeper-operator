@@ -59,6 +59,3 @@ spec:
           - name: available_replicas
             value: 1
         file: zk-assert.yaml
-    cleanup:
-    - sleep:
-        duration: 30s
