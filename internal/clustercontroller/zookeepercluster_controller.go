@@ -27,11 +27,9 @@ import (
 
 	"github.com/zncdatadev/operator-go/pkg/client"
 	"github.com/zncdatadev/operator-go/pkg/constants"
-	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/clustercontroller/cluster"
 	"github.com/zncdatadev/zookeeper-operator/internal/util"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var (
@@ -89,19 +87,9 @@ func (r *ZookeeperClusterReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		OwnerReference: instance,
 	}
 
-	gvk := instance.GetObjectKind().GroupVersionKind()
-
 	clusterReconciler := cluster.NewClusterReconciler(
 		resourceClient,
-		reconciler.ClusterInfo{
-			GVK: &metav1.GroupVersionKind{
-				Group:   gvk.Group,
-				Version: gvk.Version,
-				Kind:    gvk.Kind,
-			},
-			ClusterName: instance.Name,
-		},
-		&instance.Spec,
+		instance,
 	)
 
 	if err := clusterReconciler.RegisterResources(ctx); err != nil {

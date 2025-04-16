@@ -7,6 +7,7 @@ import (
 	"github.com/zncdatadev/operator-go/pkg/client"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	"github.com/zncdatadev/operator-go/pkg/util"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/clustercontroller/server"
@@ -19,21 +20,34 @@ var _ reconciler.Reconciler = &Reconciler{}
 type Reconciler struct {
 	reconciler.BaseCluster[*zkv1alpha1.ZookeeperClusterSpec]
 	ClusterConfig *zkv1alpha1.ClusterConfigSpec
+
+	cluster *zkv1alpha1.ZookeeperCluster
 }
 
 func NewClusterReconciler(
 	client *client.Client,
-	clusterInfo reconciler.ClusterInfo,
-	spec *zkv1alpha1.ZookeeperClusterSpec,
+	cluster *zkv1alpha1.ZookeeperCluster,
 ) *Reconciler {
+	gvk := cluster.GetObjectKind().GroupVersionKind()
+
+	clusterInfo := reconciler.ClusterInfo{
+		GVK: &metav1.GroupVersionKind{
+			Group:   gvk.Group,
+			Version: gvk.Version,
+			Kind:    gvk.Kind,
+		},
+		ClusterName: cluster.Name,
+	}
 	return &Reconciler{
 		BaseCluster: *reconciler.NewBaseCluster(
 			client,
 			clusterInfo,
-			spec.ClusterOperationSpec,
-			spec,
+			cluster.Spec.ClusterOperationSpec,
+			&cluster.Spec,
 		),
-		ClusterConfig: spec.ClusterConfig,
+		ClusterConfig: cluster.Spec.ClusterConfig,
+
+		cluster: cluster,
 	}
 }
 
@@ -69,13 +83,18 @@ func (r *Reconciler) RegisterResources(ctx context.Context) error {
 	svc := NewClusterServiceReconciler(r.Client, r.ClusterInfo, listenerClass, zkSecurity)
 	r.AddResource(svc)
 
+	// Add znode root to discovery
+	znodeInfo := &common.ZNodeInfo{
+		Name:      r.cluster.Name,
+		Namespace: r.cluster.Namespace,
+		ZNodePath: "/",
+	}
 	discoveryReconcilers := common.NewDiscoveryReconcilers(
 		ctx,
 		client,
-		r.ClusterInfo,
-		r.Spec,
-		nil,
+		r.cluster,
 		zkSecurity,
+		znodeInfo,
 		func(o *builder.Options) {
 			o.Labels = clusterLables
 			o.Annotations = annotations

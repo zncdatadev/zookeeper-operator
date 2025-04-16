@@ -20,25 +20,31 @@ import (
 
 var discoveryLogger = ctrl.Log.WithName("discovery")
 
+type ZNodeInfo struct {
+	Name      string
+	Namespace string
+	ZNodePath string
+}
+
 func NewDiscoveryReconcilers(
 	ctx context.Context,
 	client *client.Client,
-	clusterInfo reconciler.ClusterInfo,
-	clusterSpec *zkv1alpha1.ZookeeperClusterSpec,
-	znode *string,
+	zkCluster *zkv1alpha1.ZookeeperCluster,
 	zkSecurity *security.ZookeeperSecurity,
+	znodeInfo *ZNodeInfo,
 	options ...builder.Option,
 ) []reconciler.ResourceReconciler[builder.ConfigBuilder] {
 	discoveries := make(map[string]Discoverer, 0)
 	// create a default cluster-internal discovery configmap
-	discovery := NewDiscoverer(client, clusterInfo, clusterSpec, zkSecurity, znode, zkv1alpha1.ClusterInternal)
-	discoveries[clusterInfo.GetClusterName()] = discovery
-	if zkv1alpha1.ListenerClass(clusterSpec.ClusterConfig.ListenerClass) == zkv1alpha1.ExternalUnstable {
+	discovery := NewDiscoverer(client, zkCluster, zkSecurity, znodeInfo, zkv1alpha1.ClusterInternal)
+	discoveries[znodeInfo.Name] = discovery
+	if zkv1alpha1.ListenerClass(zkCluster.Spec.ClusterConfig.ListenerClass) == zkv1alpha1.ExternalUnstable {
 		// create a external discovery configmap
-		discovery = NewDiscoverer(client, clusterInfo, clusterSpec, zkSecurity, znode, zkv1alpha1.ExternalUnstable)
-		discoveries[clusterInfo.GetClusterName()+"-nodeport"] = discovery
+		discovery = NewDiscoverer(client, zkCluster, zkSecurity, znodeInfo, zkv1alpha1.ExternalUnstable)
+		discoveries[znodeInfo.Name+"-nodeport"] = discovery
 	}
 
+	// create discovery configmaps of znode
 	reconcilers := make([]reconciler.ResourceReconciler[builder.ConfigBuilder], 0, len(discoveries))
 	for key, discovery := range discoveries {
 		reconcilers = append(reconcilers, reconciler.NewGenericResourceReconciler(
@@ -105,18 +111,16 @@ type Discoverer interface {
 
 func NewDiscoverer(
 	client *client.Client,
-	clusterInfo reconciler.ClusterInfo,
-	clusterSpec *zkv1alpha1.ZookeeperClusterSpec,
+	zkCluster *zkv1alpha1.ZookeeperCluster,
 	zkSecurity *security.ZookeeperSecurity,
-	znode *string,
+	znodeInfo *ZNodeInfo,
 	listenerClass zkv1alpha1.ListenerClass,
 ) Discoverer {
 	return &discovery{
 		client:        client,
-		clusterInfo:   clusterInfo,
-		clusterSpec:   clusterSpec,
+		zkCluster:     zkCluster,
 		zkSecurity:    zkSecurity,
-		znode:         znode,
+		znodeInfo:     znodeInfo,
 		listenerClass: listenerClass,
 	}
 }
@@ -125,10 +129,9 @@ var _ Discoverer = &discovery{}
 
 type discovery struct {
 	client        *client.Client
-	clusterInfo   reconciler.ClusterInfo
-	clusterSpec   *zkv1alpha1.ZookeeperClusterSpec
+	zkCluster     *zkv1alpha1.ZookeeperCluster
 	zkSecurity    *security.ZookeeperSecurity
-	znode         *string
+	znodeInfo     *ZNodeInfo
 	listenerClass zkv1alpha1.ListenerClass
 }
 
@@ -147,29 +150,28 @@ func (d *discovery) GetZookeeperConnection(ctx context.Context) (*ZookeeperConne
 		}
 	}
 
-	znode := "/"
+	znodePath := d.znodeInfo.ZNodePath
 
-	if d.znode != nil && *d.znode != "" {
-		znode = *d.znode
+	if znodePath == "" {
+		znodePath = "/"
 	}
 
-	if !strings.HasPrefix(znode, "/") {
+	if !strings.HasPrefix(znodePath, "/") {
 		return nil, fmt.Errorf("znode must start with /")
 	}
 
 	zkconn := &ZookeeperConnection{
 		// uri example: "host1:port,host2:port,host3:port/znode"
-		URI:   fmt.Sprintf("%s%s", strings.Join(hosts, ","), znode),
+		URI:   fmt.Sprintf("%s%s", strings.Join(hosts, ","), znodePath),
 		Hosts: hosts,
 		Port:  int32(d.zkSecurity.ClientPort()),
-		ZNode: znode,
+		ZNode: znodePath,
 	}
 	return zkconn, nil
 }
 
 func (d *discovery) getPodHosts() ([]string, error) {
-
-	servers := d.clusterSpec.Servers
+	servers := d.zkCluster.Spec.Servers
 	if servers == nil {
 		return nil, fmt.Errorf("servers spec is nil")
 	}
@@ -192,10 +194,10 @@ func (d *discovery) getPodHosts() ([]string, error) {
 			replicas = rg.Replicas
 		}
 		// role group service name
-		roleGroupSvc := fmt.Sprintf("%s-%s", d.clusterInfo.GetClusterName(), rgName)
+		roleGroupSvc := fmt.Sprintf("%s-%s", d.zkCluster.Name, rgName)
 		for i := int32(0); i < replicas; i++ {
 			podName := fmt.Sprintf("%s-%d", roleGroupSvc, i)
-			fqdn := fmt.Sprintf("%s.%s.%s.svc:%d", podName, roleGroupSvc, d.client.GetOwnerNamespace(), clientPort)
+			fqdn := fmt.Sprintf("%s.%s.%s.svc:%d", podName, roleGroupSvc, d.zkCluster.Namespace, clientPort)
 			hosts = append(hosts, fqdn)
 		}
 	}
@@ -206,8 +208,8 @@ func (d *discovery) getPodHosts() ([]string, error) {
 
 func (d *discovery) getNodeport(ctx context.Context) ([]string, error) {
 
-	svcName := d.clusterInfo.GetClusterName()
-	namespace := d.client.GetOwnerNamespace()
+	svcName := d.zkCluster.Name
+	namespace := d.zkCluster.Namespace
 
 	var svc corev1.Service
 	if err := d.client.Get(ctx, ctrlclient.ObjectKey{Namespace: namespace, Name: svcName}, &svc); err != nil {
