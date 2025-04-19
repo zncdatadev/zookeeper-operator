@@ -106,9 +106,9 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 
 ##@ Build
 
-LDFLAGS = "-X github.com/zncdatadev/$(PROJECT_NAME)/internal/util/version.Version=$(VERSION) \
-	-X github.com/zncdatadev/$(PROJECT_NAME)/internal/util/version.BuildCommit=$(BUILD_COMMIT) \
-	-X github.com/zncdatadev/$(PROJECT_NAME)/internal/util/version.BuildTimestamp=$(BUILD_TIMESTAMP)"
+LDFLAGS = "-X github.com/zncdatadev/$(PROJECT_NAME)/internal/util/version.BuildVersion=$(VERSION) \
+	-X github.com/zncdatadev/$(PROJECT_NAME)/internal/util/version.GitCommit=$(BUILD_COMMIT) \
+	-X github.com/zncdatadev/$(PROJECT_NAME)/internal/util/version.BuildTime=$(BUILD_TIMESTAMP)"
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.

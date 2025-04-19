@@ -10,15 +10,15 @@ import (
 // to set the version information dynamically.
 var (
 	BuildVersion = "N/A"
-	GitCommit    = "N/A"
 	BuildTime    = "N/A"
+	GitCommit    = "N/A"
 )
 
 type AppInfo struct {
 	Name       string `json:"AppName"`
 	AppVersion string `json:"AppVersion"`
-	GitCommit  string `json:"GitCommit"`
 	BuildTime  string `json:"BuildTime"`
+	GitCommit  string `json:"GitCommit"`
 	GoVersion  string `json:"GoVersion"`
 	Compiler   string `json:"Compiler"`
 	Platform   string `json:"Platform"`
