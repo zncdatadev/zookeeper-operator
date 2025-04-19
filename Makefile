@@ -6,6 +6,10 @@ ENVTEST_K8S_VERSION = 1.26.1
 REGISTRY ?= quay.io/zncdatadev
 PROJECT_NAME = zookeeper-operator
 
+# Build variables
+BUILD_TIMESTAMP ?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
+BUILD_COMMIT ?= $(shell git rev-parse HEAD)
+
 # IMAGE_TAG_BASE defines the docker.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
@@ -102,9 +106,13 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 
 ##@ Build
 
+LDFLAGS = "-X github.com/zncdatadev/$(PROJECT_NAME)/internal/util/version.Version=$(VERSION) \
+	-X github.com/zncdatadev/$(PROJECT_NAME)/internal/util/version.BuildCommit=$(BUILD_COMMIT) \
+	-X github.com/zncdatadev/$(PROJECT_NAME)/internal/util/version.BuildTimestamp=$(BUILD_TIMESTAMP)"
+
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/main.go
+	go build -ldflags $(LDFLAGS) -o bin/manager cmd/main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
