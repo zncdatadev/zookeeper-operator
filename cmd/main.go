@@ -19,6 +19,7 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -83,7 +84,7 @@ func main() {
 
 	if showVersion {
 		importedVersion := version.NewAppInfo("zookeeper-operator").String()
-		println(importedVersion)
+		fmt.Println(importedVersion)
 		os.Exit(0)
 	}
 
