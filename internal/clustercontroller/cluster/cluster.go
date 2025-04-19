@@ -13,6 +13,7 @@ import (
 	"github.com/zncdatadev/zookeeper-operator/internal/clustercontroller/server"
 	"github.com/zncdatadev/zookeeper-operator/internal/common"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
+	zkutil "github.com/zncdatadev/zookeeper-operator/internal/util"
 )
 
 var _ reconciler.Reconciler = &Reconciler{}
@@ -52,7 +53,7 @@ func NewClusterReconciler(
 }
 
 func (r *Reconciler) GetImage() *util.Image {
-	return zkv1alpha1.TransformImage(r.Spec.Image)
+	return zkutil.TransformImage(r.Spec.Image)
 }
 
 func (r *Reconciler) RegisterResources(ctx context.Context) error {
