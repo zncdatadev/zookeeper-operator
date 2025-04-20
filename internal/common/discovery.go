@@ -3,6 +3,8 @@ package common
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"github.com/zncdatadev/operator-go/pkg/client"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -172,8 +175,21 @@ func (d *discovery) GetZookeeperConnection(ctx context.Context) (*ZookeeperConne
 
 func (d *discovery) getPodHosts() ([]string, error) {
 	servers := d.zkCluster.Spec.Servers
-	// zkcluster only has one role group for server, so we can use a fixed role name
-	roleName := "server"
+
+	gvk := d.zkCluster.GetObjectKind().GroupVersionKind()
+	roleInfo := reconciler.RoleInfo{
+		ClusterInfo: reconciler.ClusterInfo{
+			GVK: &metav1.GroupVersionKind{
+				Group:   gvk.Group,
+				Version: gvk.Version,
+				Kind:    gvk.Kind,
+			},
+			ClusterName: d.zkCluster.Name,
+		},
+		// zkcluster only has one role group for server, so we can use a fixed role name
+		RoleName: "server",
+	}
+
 	if servers == nil {
 		return nil, fmt.Errorf("servers spec is nil")
 	}
@@ -181,26 +197,28 @@ func (d *discovery) getPodHosts() ([]string, error) {
 	if roleGroups == nil {
 		roleGroups = map[string]zkv1alpha1.RoleGroupSpec{}
 	}
-	roleGroupNames := make([]string, 0, len(roleGroups))
-	for name := range roleGroups {
-		roleGroupNames = append(roleGroupNames, name)
+
+	roleGroupsInfo := make([]reconciler.RoleGroupInfo, 0, len(roleGroups))
+
+	for _, name := range slices.Sorted(maps.Keys(roleGroups)) {
+		roleGroupsInfo = append(roleGroupsInfo, reconciler.RoleGroupInfo{
+			RoleInfo:      roleInfo,
+			RoleGroupName: name,
+		})
 	}
-	sort.Strings(roleGroupNames)
 
 	clientPort := d.zkSecurity.ClientPort()
 	hosts := make([]string, 0)
-	for _, rgName := range roleGroupNames {
-		rg := roleGroups[rgName]
+	for _, rgInfo := range roleGroupsInfo {
+		rg := roleGroups[rgInfo.RoleGroupName]
 		replicas := int32(1)
 		if rg.Replicas > 0 {
 			replicas = rg.Replicas
 		}
-		// role group service name
-		// In operator-go, the service name is constructed as "<zkClusterName>-<roleName>-<roleGroupName>"
-		roleGroupSvc := fmt.Sprintf("%s-%s-%s", d.zkCluster.Name, roleName, rgName)
+		roleGroupServiceName := rgInfo.GetFullName()
 		for i := int32(0); i < replicas; i++ {
-			podName := fmt.Sprintf("%s-%d", roleGroupSvc, i)
-			fqdn := fmt.Sprintf("%s.%s.%s.svc:%d", podName, roleGroupSvc, d.zkCluster.Namespace, clientPort)
+			podName := fmt.Sprintf("%s-%d", roleGroupServiceName, i)
+			fqdn := fmt.Sprintf("%s.%s.%s.svc:%d", podName, roleGroupServiceName, d.zkCluster.Namespace, clientPort)
 			hosts = append(hosts, fqdn)
 		}
 	}
