@@ -126,7 +126,6 @@ spec:
                   custom:
                     type: string
                   kubedoopVersion:
-                    default: 0.0.0-dev
                     type: string
                   productVersion:
                     default: 3.9.2

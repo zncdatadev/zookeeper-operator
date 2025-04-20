@@ -20,7 +20,6 @@ type ImageSpec struct {
 	Repo string `json:"repo,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default="0.0.0-dev"
 	KubedoopVersion string `json:"kubedoopVersion,omitempty"`
 
 	// +kubebuilder:validation:Optional
