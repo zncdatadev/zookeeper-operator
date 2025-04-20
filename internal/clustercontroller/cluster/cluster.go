@@ -13,7 +13,7 @@ import (
 	"github.com/zncdatadev/zookeeper-operator/internal/clustercontroller/server"
 	"github.com/zncdatadev/zookeeper-operator/internal/common"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
-	zkutil "github.com/zncdatadev/zookeeper-operator/internal/util"
+	zkversion "github.com/zncdatadev/zookeeper-operator/internal/util/version"
 )
 
 var _ reconciler.Reconciler = &Reconciler{}
@@ -53,7 +53,22 @@ func NewClusterReconciler(
 }
 
 func (r *Reconciler) GetImage() *util.Image {
-	return zkutil.TransformImage(r.Spec.Image)
+	image := util.NewImage(
+		zkv1alpha1.DefaultProductName,
+		zkversion.BuildVersion,
+		r.Spec.Image.ProductVersion,
+		func(options *util.ImageOptions) {
+			options.Custom = r.Spec.Image.Custom
+			options.Repo = r.Spec.Image.Repo
+			options.PullPolicy = *r.Spec.Image.PullPolicy
+		},
+	)
+
+	if r.Spec.Image.KubedoopVersion != "" {
+		image.KubedoopVersion = r.Spec.Image.KubedoopVersion
+	}
+
+	return image
 }
 
 func (r *Reconciler) RegisterResources(ctx context.Context) error {
