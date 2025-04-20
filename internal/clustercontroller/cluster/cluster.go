@@ -56,7 +56,7 @@ func (r *Reconciler) GetImage() *util.Image {
 	image := util.NewImage(
 		zkv1alpha1.DefaultProductName,
 		zkversion.BuildVersion,
-		r.Spec.Image.ProductVersion,
+		zkv1alpha1.DefaultProductVersion,
 		func(options *util.ImageOptions) {
 			options.Custom = r.Spec.Image.Custom
 			options.Repo = r.Spec.Image.Repo
