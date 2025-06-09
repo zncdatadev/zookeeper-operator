@@ -218,7 +218,7 @@ func (d *discovery) getPodHosts() ([]string, error) {
 		roleGroupServiceName := rgInfo.GetFullName()
 		for i := int32(0); i < replicas; i++ {
 			podName := fmt.Sprintf("%s-%d", roleGroupServiceName, i)
-			fqdn := fmt.Sprintf("%s.%s.%s.svc:%d", podName, roleGroupServiceName, d.zkCluster.Namespace, clientPort)
+			fqdn := fmt.Sprintf("%s.%s.%s.svc.cluster.local:%d", podName, roleGroupServiceName, d.zkCluster.Namespace, clientPort)
 			hosts = append(hosts, fqdn)
 		}
 	}
