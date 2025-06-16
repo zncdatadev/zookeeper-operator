@@ -105,6 +105,7 @@ type ZookeeperClusterSpec struct {
 	// +kubebuilder:validation:Optional
 	ClusterOperationSpec *commonsv1alpha1.ClusterOperationSpec `json:"clusterOperation,omitempty"`
 	// +kubebuilder:validation:Optional
+	// +default:value={"listenerClass": "cluster-internal"}
 	ClusterConfig *ClusterConfigSpec `json:"clusterConfig,omitempty"`
 	// +kubebuilder:validation:Required
 	Servers *ServerSpec `json:"servers"`
