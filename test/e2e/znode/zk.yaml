@@ -11,11 +11,9 @@ metadata:
 spec:
   image:
     productVersion: ($values.product_version)
-  clusterOperation:
-    stopped: false
   clusterConfig:
     listenerClass: external-unstable
   servers:
     roleGroups:
       default:
-        replicas: 3
+        replicas: 1
