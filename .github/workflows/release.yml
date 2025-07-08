@@ -141,13 +141,6 @@ jobs:
         run: |
           make docker-buildx
 
-      - name: Sign csi image
-        uses: ./.github/actions/sign-image
-
-      - name: Build and push operator
-        run: |
-          make docker-buildx
-
       - name: Sign operator image
         uses: ./.github/actions/sign-image
 
