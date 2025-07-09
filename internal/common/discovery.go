@@ -13,6 +13,7 @@ import (
 	"github.com/zncdatadev/operator-go/pkg/client"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -250,22 +251,21 @@ func (d *discovery) getNodeport(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("no nodePort found for port 'client' in service %s/%s", namespace, svcName)
 	}
 
-	var endpoints corev1.Endpoints
+	var endpoints discoveryv1.EndpointSlice
 	if err := d.client.Get(ctx, ctrlclient.ObjectKey{Namespace: namespace, Name: svcName}, &endpoints); err != nil {
 		return nil, fmt.Errorf("get endpoints %s/%s: %w", namespace, svcName, err)
 	}
 
-	nodeSet := make(map[string]struct{})
-	for _, subset := range endpoints.Subsets {
-		for _, addr := range subset.Addresses {
-			if addr.NodeName != nil && *addr.NodeName != "" {
-				nodeSet[*addr.NodeName] = struct{}{}
-			}
+	nodes := make([]string, 0, len(endpoints.Endpoints))
+	// Collect unique node names from endpoints
+	for _, endpoint := range endpoints.Endpoints {
+		if endpoint.NodeName != nil && *endpoint.NodeName != "" && !slices.Contains(nodes, *endpoint.NodeName) {
+			nodes = append(nodes, *endpoint.NodeName)
 		}
 	}
 
-	hosts := make([]string, 0, len(nodeSet))
-	for node := range nodeSet {
+	hosts := make([]string, 0, len(nodes))
+	for _, node := range nodes {
 		hosts = append(hosts, fmt.Sprintf("%s:%d", node, nodePort))
 	}
 	sort.Strings(hosts)
