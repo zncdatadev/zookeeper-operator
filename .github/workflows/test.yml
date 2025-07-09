@@ -38,10 +38,10 @@ jobs:
           # '1.28.15',
           # '1.29.12',
           # '1.30.8',
-          '1.31.4',
+          # '1.31.4',
+          '1.32.0'
         ]
         product-version: ['3.9.2', '3.8.4']
-      # max-parallel: 1
     steps:
       - name: Clone the code
         uses: actions/checkout@v4
@@ -67,6 +67,5 @@ jobs:
         env:
           KIND_K8S_VERSION: ${{ matrix.k8s-version }}
           KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
-          KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
           PRODUCT_VERSION: ${{ matrix.product-version }}
         run: make chainsaw-test
