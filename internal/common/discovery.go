@@ -251,16 +251,26 @@ func (d *discovery) getNodeport(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("no nodePort found for port 'client' in service %s/%s", namespace, svcName)
 	}
 
-	var endpoints discoveryv1.EndpointSlice
-	if err := d.client.Get(ctx, ctrlclient.ObjectKey{Namespace: namespace, Name: svcName}, &endpoints); err != nil {
-		return nil, fmt.Errorf("get endpoints %s/%s: %w", namespace, svcName, err)
+	// Find EndpointSlices by label selector instead of direct name lookup
+	var endpointSliceList discoveryv1.EndpointSliceList
+	labelSelector := ctrlclient.MatchingLabels{
+		"kubernetes.io/service-name": svcName,
+	}
+	if err := d.client.Client.List(ctx, &endpointSliceList, ctrlclient.InNamespace(namespace), labelSelector); err != nil {
+		return nil, fmt.Errorf("list endpointslices for service %s/%s: %w", namespace, svcName, err)
 	}
 
-	nodes := make([]string, 0, len(endpoints.Endpoints))
-	// Collect unique node names from endpoints
-	for _, endpoint := range endpoints.Endpoints {
-		if endpoint.NodeName != nil && *endpoint.NodeName != "" && !slices.Contains(nodes, *endpoint.NodeName) {
-			nodes = append(nodes, *endpoint.NodeName)
+	if len(endpointSliceList.Items) == 0 {
+		return nil, fmt.Errorf("no endpointslices found for service %s/%s", namespace, svcName)
+	}
+
+	nodes := make([]string, 0)
+	// Collect unique node names from all EndpointSlices
+	for _, endpointSlice := range endpointSliceList.Items {
+		for _, endpoint := range endpointSlice.Endpoints {
+			if endpoint.NodeName != nil && *endpoint.NodeName != "" && !slices.Contains(nodes, *endpoint.NodeName) {
+				nodes = append(nodes, *endpoint.NodeName)
+			}
 		}
 	}
 
