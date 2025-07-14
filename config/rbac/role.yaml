@@ -22,7 +22,6 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - endpoints
   - pods
   verbs:
   - get
@@ -39,6 +38,14 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - policy
