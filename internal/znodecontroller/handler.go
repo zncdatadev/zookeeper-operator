@@ -3,6 +3,7 @@ package znodecontroller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/finalizer"
@@ -84,6 +85,17 @@ func (z *ZNodeReconciler) reconcile(ctx context.Context, cluster *zkv1alpha1.Zoo
 		return res, znodePath, nil
 	}
 
+	if res, err := z.updateZnodeStatus(ctx, znodePath); err != nil {
+		znodeLogger.Error(err, "failed to update znode status",
+			"namespace", z.instance.Namespace,
+			"name", z.instance.Name,
+			"znodePath", znodePath)
+		return ctrl.Result{}, "", err
+	} else if !res.IsZero() {
+		znodeLogger.V(1).Info("update znode status result", "requeueAfter", res.RequeueAfter)
+		return res, znodePath, nil
+	}
+
 	znodeLogger.V(1).Info("znode reconciled successfully", "namespace", z.instance.Namespace, "name", z.instance.Name, "znode path", znodePath)
 	return ctrl.Result{}, znodePath, nil
 }
@@ -140,6 +152,37 @@ func (z *ZNodeReconciler) createZookeeperZnode(path string, cluster *zkv1alpha1.
 		return err
 	}
 	return nil
+}
+
+// update znode status, if the status already has the correct znode path, it will not update.
+func (z *ZNodeReconciler) updateZnodeStatus(ctx context.Context, znodePath string) (ctrl.Result, error) {
+	// Check if the status already has the correct znode path to avoid unnecessary updates
+	if z.instance.Status.ZnodePath == znodePath {
+		znodeLogger.V(1).Info("znode status already up to date, skipping update",
+			"namespace", z.instance.Namespace,
+			"name", z.instance.Name,
+			"znodePath", znodePath)
+		return ctrl.Result{}, nil
+	}
+
+	// Update the ZNode status with the znode path
+	z.instance.Status.ZnodePath = znodePath
+
+	// Update the status in Kubernetes
+	if err := z.client.Status().Update(ctx, z.instance); err != nil {
+		znodeLogger.Error(err, "failed to update znode status",
+			"namespace", z.instance.Namespace,
+			"name", z.instance.Name,
+			"znodePath", znodePath)
+		return ctrl.Result{}, err
+	}
+
+	znodeLogger.V(1).Info("znode status updated successfully",
+		"namespace", z.instance.Namespace,
+		"name", z.instance.Name,
+		"znodePath", znodePath)
+
+	return ctrl.Result{RequeueAfter: time.Second}, nil
 }
 
 // get custer service url
