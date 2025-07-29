@@ -17,3 +17,6 @@ metadata:
 spec:
   clusterRef:
     name: zookeepercluster-sample
+status:
+  znodePath:
+    (starts_with(@, '/znode')): true
