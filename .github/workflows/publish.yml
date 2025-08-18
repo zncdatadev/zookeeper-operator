@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone the code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -39,7 +39,7 @@ jobs:
           make chart-publish
 
       - name: Clone helm charts repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: zncdatadev/kubedoop-helm-charts
           ref: gh-pages
