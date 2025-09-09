@@ -44,3 +44,12 @@ docker-digests.json
 # helm charts
 # helm package directory
 target
+
+# mac os
+.DS_Store
+.Thumbs.db
+*.iml
+*.ipr
+*.iws
+*.log
+*.tmp
