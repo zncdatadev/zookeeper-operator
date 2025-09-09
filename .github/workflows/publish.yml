@@ -27,8 +27,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
+          username: ${{ secrets.QUAY_CHART_USERNAME }}
+          password: ${{ secrets.QUAY_CHART_PASSWORD }}
 
       - name: Build and push operator
         run: |
