@@ -8,7 +8,7 @@ on:
 
 
 env:
-  VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '0.0.0-dev' }}
+  VERSION: 0.3.0
 
 
 jobs:
@@ -87,7 +87,7 @@ jobs:
         if: steps.list-changed.outputs.changed == 'true'
         run: |
           make docker-build
-          kind load docker-image quay.io/zncdatadev/zookeeper-operator:$VERSION
+          kind load docker-image quay.io/zncdatadev/zookeeper-operator:${{ env.VERSION }}
 
 
       - name: Run chart-testing (install)
