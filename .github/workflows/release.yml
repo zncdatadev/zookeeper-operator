@@ -169,7 +169,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Run ah lint
-        working-directory: ./charts
+        working-directory: deploy/helm
         run: ah lint
 
       - name: Set up Helm
