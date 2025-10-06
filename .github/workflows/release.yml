@@ -311,7 +311,7 @@ jobs:
       - chart-lint-test
     steps:
       - name: Clone the code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Login to quay.io
         uses: docker/login-action@v3
