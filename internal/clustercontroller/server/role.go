@@ -128,7 +128,11 @@ func (r *Reconciler) RegisterResourceWithRoleGroup(
 	service := NewServiceReconciler(r.Client, info, listenerClass, zkSecurity)
 	reconcilers = append(reconcilers, service)
 
-	// 3. cofigmap
+	// 3. metrics service
+	metricsService := NewRoleGroupMetricsService(r.Client, info)
+	reconcilers = append(reconcilers, metricsService)
+
+	// 4. cofigmap
 	configMap := NewConfigMapReconciler(ctx, r.Client, repilicates, info, mergedOverrides, mergedRoleGroupConfig, zkSecurity)
 	reconcilers = append(reconcilers, configMap)
 
