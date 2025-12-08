@@ -25,7 +25,11 @@ Dockerfile.cross
 *.swo
 *~
 
-kind-kubeconfig*
+# Ignore kubeconfig files
+.kubeconfig*
+
+# Ignore docker digest files
+docker-digests.json
 
 *-local.yaml
 *-local.*
@@ -38,8 +42,6 @@ cover.out
 
 # ai code local
 .codiumai.toml
-
-docker-digests.json
 
 # helm charts
 # helm package directory
