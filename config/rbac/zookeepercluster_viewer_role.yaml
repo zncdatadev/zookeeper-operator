@@ -1,7 +1,7 @@
 # This rule is not used by the project zookeeper-operator itself.
 # It is provided to allow the cluster admin to help manage permissions for users.
 #
-# Grants read-only access to authentication.kubedoop.dev.
+# Grants read-only access to zookeeper.kubedoop.dev.
 # This role is intended for users who need visibility into these resources
 # without permissions to modify them. It is ideal for monitoring purposes and limited-access viewing.
 
