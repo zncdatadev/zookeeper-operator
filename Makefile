@@ -322,7 +322,7 @@ KIND_K8S_VERSION ?= 1.26.15
 KIND_IMAGE ?= kindest/node:v${KIND_K8S_VERSION}
 # Define operator dependencies to be installed before running chainsaw tests.
 # It is a list of Helm chart names separated by spaces.
-OPERATOR_DEPENDS ?= "commons-operator listener-operator secret-operator"
+OPERATOR_DEPENDS ?= commons-operator listener-operator secret-operator
 TEST_NAMESPACE = kubedoop-operators
 
 .PHONY: chainsaw
@@ -344,15 +344,17 @@ setup-chainsaw-cluster: ## Set up a Kind cluster for e2e tests if it does not ex
 			$(KIND) create cluster --name $(CHAINSAW_CLUSTER) --image $(KIND_IMAGE) --kubeconfig $(CHAINSAW_KUBECONFIG) ;; \
 	esac
 
+	@if [ -n "$(strip $(OPERATOR_DEPENDS))" ]; then \
+		for dep in $(OPERATOR_DEPENDS); do \
+			$(HELM) upgrade --install --create-namespace --namespace $(TEST_NAMESPACE) --kubeconfig $(CHAINSAW_KUBECONFIG) --wait $$dep oci://quay.io/kubedoopcharts/$$dep --version $(VERSION); \
+		done; \
+	fi
+
 .PHONY: setup-chainsaw-e2e
 setup-chainsaw-e2e: chainsaw docker-build ## Run the chainsaw setup
 	$(KIND) --name $(CHAINSAW_CLUSTER) load docker-image "$(IMG)"
 	KUBECONFIG=$(CHAINSAW_KUBECONFIG) $(MAKE) deploy
-	@if [ -n "$(strip $(HELM_DEPENDS))" ]; then \
-		for dep in $(HELM_DEPENDS); do \
-			$(HELM) upgrade --install --create-namespace --namespace $(TEST_NAMESPACE) --wait  $$dep oci://quay.io/kubedoopcharts/$$dep --version $(VERSION); \
-		done; \
-	fi
+
 
 .PHONY: chainsaw-e2e
 chainsaw-e2e: ## Run the chainsaw e2e tests
@@ -361,8 +363,8 @@ chainsaw-e2e: ## Run the chainsaw e2e tests
 .PHONY: cleanup-chainsaw-e2e
 cleanup-chainsaw-e2e: ## Run the chainsaw cleanup
 	KUBECONFIG=$(CHAINSAW_KUBECONFIG) $(MAKE) undeploy
-	@if [ -n "$(strip $(HELM_DEPENDS))" ]; then \
-		for dep in $(HELM_DEPENDS); do \
+	@if [ -n "$(strip $(OPERATOR_DEPENDS))" ]; then \
+		for dep in $(OPERATOR_DEPENDS); do \
 			$(HELM) uninstall --namespace $(TEST_NAMESPACE) $$dep; \
 		done; \
 	fi
