@@ -3,9 +3,6 @@ VERSION ?= 0.0.0-dev
 
 # REGISTRY refers to the container registry where the image will be pushed.
 REGISTRY ?= quay.io/zncdatadev
-# OCI_REGISTRY refers to the OCI registry where the helm chart will be pushed.
-OCI_REGISTRY ?= oci://quay.io/kubedoopcharts
-
 PROJECT_NAME = zookeeper-operator
 # Image URL to use all building/pushing image targets
 IMG ?= $(REGISTRY)/$(PROJECT_NAME):$(VERSION)
@@ -118,6 +115,7 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 # Build variables
 BUILD_TIMESTAMP ?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 BUILD_COMMIT ?= $(shell git rev-parse HEAD)
+
 LDFLAGS = "-X github.com/zncdatadev/$(PROJECT_NAME)/internal/util/version.BuildVersion=$(VERSION) \
 	-X github.com/zncdatadev/$(PROJECT_NAME)/internal/util/version.GitCommit=$(BUILD_COMMIT) \
 	-X github.com/zncdatadev/$(PROJECT_NAME)/internal/util/version.BuildTime=$(BUILD_TIMESTAMP)"
@@ -135,11 +133,11 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	$(CONTAINER_TOOL) build --build-arg LDFLAGS=$(LDFLAGS) -t ${IMG} .
+	"$(CONTAINER_TOOL)" build --build-arg LDFLAGS=$(LDFLAGS) -t ${IMG} .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
-	$(CONTAINER_TOOL) push ${IMG}
+	"$(CONTAINER_TOOL)" push ${IMG}
 
 # PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
 # architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:
@@ -163,16 +161,6 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	mkdir -p dist
 	cd config/manager && "$(KUSTOMIZE)" edit set image controller=${IMG}
 	"$(KUSTOMIZE)" build config/default > dist/install.yaml
-
-.PHONY: chart ## Generate helm chart for the operator.
-chart: manifests kustomize ## Generate helm chart for the operator.
-	"$(KUSTOMIZE)" build config/crd > deploy/helm/$(PROJECT_NAME)/crds/crds.yaml
-
-.PHONY: chart-publish ## Publish helm chart for the operator.
-chart-publish: helm chart ## Publish helm chart for the operator.
-	mkdir -p target/charts
-	"$(HELM)" package deploy/helm/$(PROJECT_NAME) --version $(VERSION) --app-version $(VERSION) --destination target/charts
-	"$(HELM)" push target/charts/$(PROJECT_NAME)-$(VERSION).tgz $(OCI_REGISTRY)
 
 
 ##@ Deployment
@@ -317,7 +305,6 @@ KIND_IMAGE ?= kindest/node:v${KIND_K8S_VERSION}
 # Define operator dependencies to be installed before running chainsaw tests.
 # It is a list of Helm chart names separated by spaces.
 OPERATOR_DEPENDS ?= commons-operator listener-operator secret-operator
-TEST_NAMESPACE = kubedoop-operators
 
 .PHONY: chainsaw
 chainsaw: $(CHAINSAW) ## Download chainsaw locally if necessary.
@@ -339,14 +326,16 @@ setup-chainsaw-cluster: ## Set up a Kind cluster for e2e tests if it does not ex
 	esac
 
 	@if [ -n "$(strip $(OPERATOR_DEPENDS))" ]; then \
+		echo "Installing operator dependencies..."; \
 		for dep in $(OPERATOR_DEPENDS); do \
-			$(HELM) upgrade --install --create-namespace --namespace $(TEST_NAMESPACE) --kubeconfig $(CHAINSAW_KUBECONFIG) --wait $$dep oci://quay.io/kubedoopcharts/$$dep --version $(VERSION); \
+			echo "Installing $$dep..."; \
+			"$(HELM)" upgrade --install --create-namespace --namespace kubedoop-operators --kubeconfig $(CHAINSAW_KUBECONFIG) --wait $$dep oci://quay.io/kubedoopcharts/$$dep --version $(VERSION); \
 		done; \
 	fi
 
 .PHONY: setup-chainsaw-e2e
 setup-chainsaw-e2e: chainsaw docker-build ## Run the chainsaw setup
-	$(KIND) --name $(CHAINSAW_CLUSTER) load docker-image "$(IMG)"
+	"$(KIND)" --name $(CHAINSAW_CLUSTER) load docker-image "$(IMG)"
 	KUBECONFIG=$(CHAINSAW_KUBECONFIG) $(MAKE) deploy
 
 
@@ -359,7 +348,7 @@ cleanup-chainsaw-e2e: ## Run the chainsaw cleanup
 	KUBECONFIG=$(CHAINSAW_KUBECONFIG) $(MAKE) undeploy
 	@if [ -n "$(strip $(OPERATOR_DEPENDS))" ]; then \
 		for dep in $(OPERATOR_DEPENDS); do \
-			$(HELM) uninstall --namespace $(TEST_NAMESPACE) $$dep; \
+			"$(HELM)" uninstall --namespace kubedoop-operators $$dep; \
 		done; \
 	fi
 
