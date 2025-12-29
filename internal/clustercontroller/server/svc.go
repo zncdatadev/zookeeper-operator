@@ -11,7 +11,6 @@ import (
 
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/client"
-	"github.com/zncdatadev/operator-go/pkg/constants"
 	opconstants "github.com/zncdatadev/operator-go/pkg/constants"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 )
@@ -40,7 +39,7 @@ func (b *ServiceBuilder) Build(_ context.Context) (ctrlclient.Object, error) {
 func NewServiceReconciler(
 	client *client.Client,
 	option *reconciler.RoleGroupInfo,
-	listenerClass constants.ListenerClass,
+	listenerClass opconstants.ListenerClass,
 	zkSecurity *security.ZookeeperSecurity,
 ) *reconciler.Service {
 	ports := []corev1.ContainerPort{
