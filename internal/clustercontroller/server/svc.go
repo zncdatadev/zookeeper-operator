@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"strconv"
 
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
@@ -10,8 +11,12 @@ import (
 
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/client"
-	"github.com/zncdatadev/operator-go/pkg/constants"
+	opconstants "github.com/zncdatadev/operator-go/pkg/constants"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
+)
+
+const (
+	TrueValue = "true"
 )
 
 var _ builder.ServiceBuilder = &ServiceBuilder{}
@@ -34,7 +39,7 @@ func (b *ServiceBuilder) Build(_ context.Context) (ctrlclient.Object, error) {
 func NewServiceReconciler(
 	client *client.Client,
 	option *reconciler.RoleGroupInfo,
-	listenerClass constants.ListenerClass,
+	listenerClass opconstants.ListenerClass,
 	zkSecurity *security.ZookeeperSecurity,
 ) *reconciler.Service {
 	ports := []corev1.ContainerPort{
@@ -68,4 +73,67 @@ func NewServiceReconciler(
 			svcBuilder,
 		),
 	}
+}
+
+// NewRoleGroupMetricsService creates a metrics service reconciler using a simple function approach
+// This creates a headless service for metrics with Prometheus labels and annotations
+func NewRoleGroupMetricsService(
+	client *client.Client,
+	roleGroupInfo *reconciler.RoleGroupInfo,
+) reconciler.Reconciler {
+	// Get metrics port
+	metricsPort := zkv1alpha1.MetricsPort
+
+	// Create service ports
+	servicePorts := []corev1.ContainerPort{
+		{
+			Name:          zkv1alpha1.MetricsPortName,
+			ContainerPort: zkv1alpha1.MetricsPort,
+			Protocol:      corev1.ProtocolTCP,
+		},
+	}
+
+	// Create service name with -metrics suffix
+	serviceName := GetMetricsServiceName(roleGroupInfo)
+
+	scheme := "http"
+	// Prepare labels (copy from roleGroupInfo and add metrics labels)
+	labels := make(map[string]string)
+	for k, v := range roleGroupInfo.GetLabels() {
+		labels[k] = v
+	}
+	labels["prometheus.io/scrape"] = TrueValue
+
+	// Prepare annotations (copy from roleGroupInfo and add Prometheus annotations)
+	annotations := make(map[string]string)
+	for k, v := range roleGroupInfo.GetAnnotations() {
+		annotations[k] = v
+	}
+	annotations["prometheus.io/scrape"] = TrueValue
+	// annotations["prometheus.io/path"] = "/metrics"  // Uncomment and modify if a specific path is needed, default is /metrics
+	annotations["prometheus.io/port"] = strconv.Itoa(metricsPort)
+	annotations["prometheus.io/scheme"] = scheme
+
+	// Create base service builder
+	baseBuilder := builder.NewServiceBuilder(
+		client,
+		serviceName,
+		servicePorts,
+		func(sbo *builder.ServiceBuilderOptions) {
+			sbo.Headless = true
+			sbo.ListenerClass = opconstants.ClusterInternal
+			sbo.Labels = labels
+			sbo.MatchingLabels = roleGroupInfo.GetLabels() // Use original labels for matching
+			sbo.Annotations = annotations
+		},
+	)
+
+	return reconciler.NewGenericResourceReconciler(
+		client,
+		baseBuilder,
+	)
+}
+
+func GetMetricsServiceName(roleGroupInfo *reconciler.RoleGroupInfo) string {
+	return roleGroupInfo.GetFullName() + "-metrics"
 }
