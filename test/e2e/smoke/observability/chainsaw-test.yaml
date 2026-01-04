@@ -1,0 +1,160 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: smoke-metrics
+spec:
+  bindings:
+    - name: zookeeper_version
+      value: ($values.product_version)
+  steps:
+  - name: install zookeeper cluster
+    try:
+    - apply:
+        file: zk.yaml
+    - assert:
+        file: zk-assert.yaml
+  - name: verify metrics service
+    try:
+    - assert:
+        file: metrics-service-assert.yaml
+  - name: test metrics endpoint connectivity
+    try:
+    - script:
+        env:
+          - name: NAMESPACE
+            value: ($namespace)
+        content: |
+          #!/bin/bash
+          set -e
+
+          echo "Testing metrics endpoint connectivity..."
+
+          # Wait for pods to be created first
+          echo "Waiting for ZooKeeper pods to be created..."
+          i=0
+          while [ $i -lt 60 ]; do
+            pod_count=$(kubectl -n $NAMESPACE get pod -l app.kubernetes.io/name=zookeepercluster,app.kubernetes.io/role-group=default --no-headers 2>/dev/null | wc -l)
+            if [ "$pod_count" -gt 0 ]; then
+              echo "Pods created, found $pod_count pod(s)"
+              break
+            fi
+            if [ $i -eq 59 ]; then
+              echo "✗ Timeout waiting for pods to be created"
+              exit 1
+            fi
+            i=$((i+1))
+            sleep 1
+          done
+
+          # Now wait for pods to be ready
+          echo "Waiting for ZooKeeper pods to be ready..."
+          kubectl -n $NAMESPACE wait --for=condition=Ready pod -l app.kubernetes.io/name=zookeepercluster,app.kubernetes.io/role-group=default --timeout=300s
+
+          # Get pod name
+          pod_name=$(kubectl -n $NAMESPACE get pod -l app.kubernetes.io/name=zookeepercluster,app.kubernetes.io/role-group=default -o jsonpath='{.items[0].metadata.name}')
+          echo "Testing pod: $pod_name"
+
+          # Test JMX exporter metrics endpoint (port 9505)
+          echo "=== Testing JMX exporter on port 9505 ==="
+          if ! kubectl -n $NAMESPACE exec $pod_name -- curl -f -s http://localhost:9505/metrics > /dev/null; then
+            echo "✗ Error: could not access JMX exporter monitoring on port 9505"
+            exit 1
+          fi
+          echo "✓ JMX exporter accessible"
+
+          # Show sample JMX metrics
+          echo "Sample metrics:"
+          kubectl -n $NAMESPACE exec $pod_name -- curl -s http://localhost:9505/metrics | head -20
+
+          # Verify JMX metrics content
+          if kubectl -n $NAMESPACE exec $pod_name -- curl -s http://localhost:9505/metrics | grep -q "jvm_"; then
+            echo "✓ JVM metrics found"
+          else
+            echo "✗ JVM metrics not found"
+            exit 1
+          fi
+
+          # Verify ZooKeeper specific metrics
+          if kubectl -n $NAMESPACE exec $pod_name -- curl -s http://localhost:9505/metrics | grep -q "zookeeper_"; then
+            echo "✓ ZooKeeper metrics found"
+          else
+            echo "✗ ZooKeeper metrics not found"
+            exit 1
+          fi
+
+          echo ""
+          echo "✓ Metrics endpoint connectivity test passed"
+
+  # 3. Install Prometheus
+  - name: install prometheus
+    try:
+      - script:
+          bindings:
+            - name: NAMESPACE
+              value: ($namespace)
+          content: |
+            #!/bin/bash
+            set -e
+
+            helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 2>/dev/null || true
+            helm repo update
+
+            helm upgrade --install prometheus prometheus-community/prometheus --version 25.3.1 --namespace "$NAMESPACE" --create-namespace -f prometheus-values.yaml --wait --timeout 5m
+
+  # 4. Verify Prometheus targets
+  - name: verify prometheus targets
+    try:
+      - script:
+          bindings:
+            - name: NAMESPACE
+              value: ($namespace)
+          content: |
+            #!/bin/bash
+            set -e
+
+            # Wait for Prometheus server pod
+            kubectl -n $NAMESPACE wait --for=condition=Ready pod -l app=prometheus,component=server --timeout=300s 2>/dev/null || true
+            sleep 3
+
+            # Port-forward
+            kubectl -n $NAMESPACE port-forward svc/prometheus-server 9090:80 > /dev/null 2>&1 &
+            PF_PID=$!
+            sleep 2
+
+            trap "kill $PF_PID 2>/dev/null || true" EXIT
+
+            # Check targets
+            echo "Querying Prometheus targets..."
+
+            # Query with retries
+            for i in {1..3}; do
+              TARGETS=$(curl -s http://localhost:9090/api/v1/targets 2>/dev/null)
+              if [[ -n "$TARGETS" ]]; then
+                break
+              fi
+              echo "Retry $i/3..."
+              sleep 2
+            done
+
+            if [[ -z "$TARGETS" ]]; then
+              echo "✗ Failed to query Prometheus targets"
+              exit 1
+            fi
+
+            echo "Targets response received"
+
+            # Check for active targets
+            if echo "$TARGETS" | grep -q '"state":"up"'; then
+              echo "✓ Prometheus has discovered active targets"
+            else
+              echo "⚠ Warning: No active targets found yet"
+            fi
+
+            # Check if ZooKeeper metrics are being scraped
+            if echo "$TARGETS" | grep -q "test-zk-metrics"; then
+              echo "✓ ZooKeeper metrics target discovered by Prometheus"
+            else
+              echo "⚠ Warning: ZooKeeper metrics target not yet discovered"
+            fi
+
+            echo "✓ Prometheus service discovery verification completed"

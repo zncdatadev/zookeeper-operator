@@ -88,7 +88,7 @@ func NewRoleGroupMetricsService(
 	servicePorts := []corev1.ContainerPort{
 		{
 			Name:          zkv1alpha1.MetricsPortName,
-			ContainerPort: zkv1alpha1.MetricsPort,
+			ContainerPort: int32(zkv1alpha1.MetricsPort),
 			Protocol:      corev1.ProtocolTCP,
 		},
 	}
