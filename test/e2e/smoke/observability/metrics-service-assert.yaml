@@ -12,10 +12,10 @@ spec:
     - name: metrics
       port: 9505
       protocol: TCP
-      targetPort: "9505"
+      targetPort: metrics
   selector:
     app.kubernetes.io/component: server
     app.kubernetes.io/instance: test-zk-metrics
-    app.kubernetes.io/managed-by: zookeeper-operator
-    app.kubernetes.io/name: zookeeper
+    app.kubernetes.io/managed-by: zookeeper.kubedoop.dev
+    app.kubernetes.io/name: zookeepercluster
     app.kubernetes.io/role-group: default
