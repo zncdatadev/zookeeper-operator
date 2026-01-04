@@ -29,8 +29,29 @@ spec:
 
           echo "Testing metrics endpoint connectivity..."
 
+          # Wait for pods to be created first
+          echo "Waiting for ZooKeeper pods to be created..."
+          i=0
+          while [ $i -lt 60 ]; do
+            pod_count=$(kubectl -n $NAMESPACE get pod -l app.kubernetes.io/name=zookeepercluster,app.kubernetes.io/role-group=default --no-headers 2>/dev/null | wc -l)
+            if [ "$pod_count" -gt 0 ]; then
+              echo "Pods created, found $pod_count pod(s)"
+              break
+            fi
+            if [ $i -eq 59 ]; then
+              echo "✗ Timeout waiting for pods to be created"
+              exit 1
+            fi
+            i=$((i+1))
+            sleep 1
+          done
+
+          # Now wait for pods to be ready
+          echo "Waiting for ZooKeeper pods to be ready..."
+          kubectl -n $NAMESPACE wait --for=condition=Ready pod -l app.kubernetes.io/name=zookeepercluster,app.kubernetes.io/role-group=default --timeout=300s
+
           # Get pod name
-          pod_name=$(kubectl -n $NAMESPACE get pod -l app.kubernetes.io/name=zookeeper,app.kubernetes.io/role-group=default -o jsonpath='{.items[0].metadata.name}')
+          pod_name=$(kubectl -n $NAMESPACE get pod -l app.kubernetes.io/name=zookeepercluster,app.kubernetes.io/role-group=default -o jsonpath='{.items[0].metadata.name}')
           echo "Testing pod: $pod_name"
 
           # Test JMX exporter metrics endpoint (port 9505)
@@ -69,7 +90,7 @@ spec:
     try:
       - script:
           bindings:
-            - name: NS
+            - name: NAMESPACE
               value: ($namespace)
           content: |
             #!/bin/bash
@@ -78,29 +99,25 @@ spec:
             helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 2>/dev/null || true
             helm repo update
 
-            helm install prometheus prometheus-community/prometheus \
-              --version 25.3.1 \
-              -n $NS \
-              -f prometheus-values.yaml \
-              --wait --timeout 5m
+            helm upgrade --install prometheus prometheus-community/prometheus --version 25.3.1 --namespace "$NAMESPACE" --create-namespace -f prometheus-values.yaml --wait --timeout 5m
 
   # 4. Verify Prometheus targets
   - name: verify prometheus targets
     try:
       - script:
           bindings:
-            - name: NS
+            - name: NAMESPACE
               value: ($namespace)
           content: |
             #!/bin/bash
             set -e
 
             # Wait for Prometheus server pod
-            kubectl -n $NS wait --for=condition=Ready pod -l app=prometheus,component=server --timeout=300s 2>/dev/null || true
+            kubectl -n $NAMESPACE wait --for=condition=Ready pod -l app=prometheus,component=server --timeout=300s 2>/dev/null || true
             sleep 3
 
             # Port-forward
-            kubectl -n $NS port-forward svc/prometheus-server 9090:80 > /dev/null 2>&1 &
+            kubectl -n $NAMESPACE port-forward svc/prometheus-server 9090:80 > /dev/null 2>&1 &
             PF_PID=$!
             sleep 2
 
