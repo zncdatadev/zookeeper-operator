@@ -140,7 +140,7 @@ func (b *StatefulsetBuilder) Build(ctx context.Context) (ctrlClient.Object, erro
 }
 
 func (b *StatefulsetBuilder) buildContainers() []corev1.Container {
-	containers := []corev1.Container{}
+	containers := make([]corev1.Container, 0, 1)
 	image := b.GetImage()
 	mainContainerBuilder := builder.NewContainer(b.RoleName, image).
 		SetImagePullPolicy(b.GetImage().GetPullPolicy()).
@@ -196,7 +196,7 @@ func (b *StatefulsetBuilder) buildInitContainer() *corev1.Container {
 func (b *StatefulsetBuilder) getMainContainerCommanArgs() []string {
 	zkConfigPath := path.Join(constants.KubedoopConfigDir, "zoo.cfg")
 
-	var args []string
+	args := make([]string, 0, 7)
 	args = append(args, fmt.Sprintf(`LOG_CONFIG_DIR_MOUNT=%s
 CONFIG_DIR_MOUNT=%s
 CONFIG_DIR=%s
