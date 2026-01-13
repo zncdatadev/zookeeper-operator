@@ -98,7 +98,7 @@ func (r *Reconciler) RegisterResourceWithRoleGroup(
 	mergedRoleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
 	mergedOverrides *commonsv1alpha1.OverridesSpec,
 ) ([]reconciler.Reconciler, error) {
-	var reconcilers []reconciler.Reconciler
+	reconcilers := make([]reconciler.Reconciler, 0, 4)
 	// security
 	zkSecurity, err := security.NewZookeeperSecurity(r.ClusterConfig)
 	if err != nil {
