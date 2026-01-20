@@ -132,7 +132,7 @@ func (c *ConfigGenerator) createZooCfgData() string {
 		"admin.serverPort":          strconv.Itoa(zkv1alpha1.AdminPort),
 		"4lw.commands.whitelist":    "srvr, mntr, conf, ruok",
 		"metricsProvider.className": "org.apache.zookeeper.metrics.prometheus.PrometheusMetricsProvider",
-		"metricsProvider.httpPort":  "7000",
+		"metricsProvider.httpPort":  strconv.Itoa(zkv1alpha1.NativeMetricsProviderPort),
 	})
 	if c.replicates > 1 {
 		maps.Copy(zooCfg, c.createZooServers())
