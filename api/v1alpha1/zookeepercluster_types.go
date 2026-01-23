@@ -47,7 +47,8 @@ const (
 	ElectionPort     = 3888
 	MetricsPort      = 9505
 
-	AdminPort = 8080
+	AdminPort                 = 8080
+	NativeMetricsProviderPort = 7000
 )
 
 // volume name
