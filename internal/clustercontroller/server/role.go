@@ -100,7 +100,7 @@ func (r *Reconciler) RegisterResourceWithRoleGroup(
 ) ([]reconciler.Reconciler, error) {
 	reconcilers := make([]reconciler.Reconciler, 0, 4)
 	// security
-	zkSecurity, err := security.NewZookeeperSecurity(r.ClusterConfig)
+	zkSecurity, err := security.NewZookeeperSecurity(ctx, r.Client.Client, r.ClusterConfig)
 	if err != nil {
 		logger.V(1).Info("failed to create zookeeper security", "error", err)
 		return nil, err

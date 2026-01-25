@@ -75,7 +75,7 @@ func (r *Reconciler) RegisterResources(ctx context.Context) error {
 	client := r.GetClient()
 	clusterLables := r.ClusterInfo.GetLabels()
 	annotations := r.ClusterInfo.GetAnnotations()
-	zkSecurity, err := security.NewZookeeperSecurity(r.ClusterConfig)
+	zkSecurity, err := security.NewZookeeperSecurity(ctx, r.Client.Client, r.ClusterConfig)
 	if err != nil {
 		return err
 	}

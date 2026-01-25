@@ -76,7 +76,7 @@ func (r *ZookeeperZnodeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 		return ctrl.Result{}, err
 	}
-	zkSecurity, err := security.NewZookeeperSecurity(zkCluster.Spec.ClusterConfig)
+	zkSecurity, err := security.NewZookeeperSecurity(ctx, r.Client, zkCluster.Spec.ClusterConfig)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
