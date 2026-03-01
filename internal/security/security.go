@@ -1,70 +1,123 @@
 package security
 
 import (
+	"context"
 	"fmt"
-	"strconv"
 
+	authv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/authentication/v1alpha1"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
-	"github.com/zncdatadev/zookeeper-operator/internal/util"
-	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
-	ZkClientPortConfigItem string = "clientPort"
+// ResolvedAuthenticationClasses holds the resolved AuthenticationClass resources
+type ResolvedAuthenticationClasses struct {
+	authenticationClasses []authv1alpha1.AuthenticationClass
+}
 
-	// volume name and mount path
-	ServerTlsVolumeName string = "server-tls"
-	QuorumTlsVolumeName string = "quorum-tls"
+// GetTLSAuthenticationClass returns the first TLS AuthenticationClass if available
+func (r *ResolvedAuthenticationClasses) GetTLSAuthenticationClass() *authv1alpha1.AuthenticationClass {
+	for i := range r.authenticationClasses {
+		if r.authenticationClasses[i].Spec.AuthenticationProvider != nil &&
+			r.authenticationClasses[i].Spec.AuthenticationProvider.TLS != nil {
+			return &r.authenticationClasses[i]
+		}
+	}
+	return nil
+}
 
-	QuorumTLSDir        string = "/kubedoop/quorum_tls"
-	QuorumTLSMountDir   string = "/kubedoop/quorum_tls_mount"
-	ServerTLSDir        string = "/kubedoop/server_tls"
-	ServerTLSMountDir   string = "/kubedoop/server_tls_mount"
-	SystemTrustStoreDir string = "/etc/pki/java/cacerts"
+// Validate validates the resolved AuthenticationClasses
+// Currently errors out if:
+// - More than one AuthenticationClass was provided
+// - AuthenticationClass mechanism was not supported (only TLS is supported)
+func (r *ResolvedAuthenticationClasses) Validate() error {
+	if len(r.authenticationClasses) > 1 {
+		return fmt.Errorf("multiple authentication classes provided, only one is supported")
+	}
 
-	// Quorum TLS
-	SSLQuorum                     string = "sslQuorum"
-	SSLQuorumClientAuth           string = "ssl.quorum.clientAuth"
-	SSLQuorumHostNameVerification string = "ssl.quorum.hostnameVerification"
-	SSLQuorumKeyStoreLocation     string = "ssl.quorum.keyStore.location"
-	SSLQuorumKeyStorePassword     string = "ssl.quorum.keyStore.password"
-	SSLQuorumTrustStoreLocation   string = "ssl.quorum.trustStore.location"
-	SSLQuorumTrustStorePassword   string = "ssl.quorum.trustStore.password"
+	for _, authClass := range r.authenticationClasses {
+		if authClass.Spec.AuthenticationProvider == nil {
+			return fmt.Errorf("authentication class %s has no provider configured", authClass.Name)
+		}
 
-	// client TLS
-	SSLClientAuth           string = "ssl.clientAuth"
-	SSLHostNameVerification string = "ssl.hostnameVerification"
-	SSLKeyStoreLocation     string = "ssl.keyStore.location"
-	SSLKeyStorePassword     string = "ssl.keyStore.password"
-	SSLTrustStoreLocation   string = "ssl.trustStore.location"
-	SSLTrustStorePassword   string = "ssl.trustStore.password"
+		provider := authClass.Spec.AuthenticationProvider
+		// Only TLS is supported for ZooKeeper
+		if provider.TLS == nil {
+			if provider.LDAP != nil {
+				return fmt.Errorf("LDAP authentication is not supported for ZooKeeper, authentication class: %s", authClass.Name)
+			}
+			if provider.OIDC != nil {
+				return fmt.Errorf("OIDC authentication is not supported for ZooKeeper, authentication class: %s", authClass.Name)
+			}
+			if provider.Static != nil {
+				return fmt.Errorf("static authentication is not supported for ZooKeeper, authentication class: %s", authClass.Name)
+			}
+			return fmt.Errorf("unsupported authentication method in class: %s", authClass.Name)
+		}
+	}
 
-	// Common tls
-	SSLAuthProviderX509 string = "authProvider.x509"
-	ServerCnxnFactory   string = "serverCnxnFactory"
+	return nil
+}
 
-	// mis
-	StorePasswordEnv string = "STORE_PASSWORD"
+// ResolveAuthenticationClasses resolves provided AuthenticationClasses via API calls and validates the contents
+func ResolveAuthenticationClasses(
+	ctx context.Context,
+	k8sClient client.Client,
+	authSpecs []zkv1alpha1.AuthenticationSpec,
+) (*ResolvedAuthenticationClasses, error) {
+	resolved := &ResolvedAuthenticationClasses{
+		authenticationClasses: make([]authv1alpha1.AuthenticationClass, 0, len(authSpecs)),
+	}
 
-	// authentication classes
-	TlsDefaultSecretClass string = "tls"
+	for _, authSpec := range authSpecs {
+		var authClass authv1alpha1.AuthenticationClass
+		// AuthenticationClass is cluster-scoped, so no namespace is needed
+		err := k8sClient.Get(ctx, types.NamespacedName{
+			Name: authSpec.AuthenticationClass,
+		}, &authClass)
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve authentication class %s: %w", authSpec.AuthenticationClass, err)
+		}
+		resolved.authenticationClasses = append(resolved.authenticationClasses, authClass)
+	}
 
-	TrueString = "true"
-)
+	if err := resolved.Validate(); err != nil {
+		return nil, fmt.Errorf("authentication class validation failed: %w", err)
+	}
+
+	return resolved, nil
+}
 
 // NewZookeeperSecurity creates a ZookeeperSecurity struct from the Zookeeper custom resource and resolves all provided AuthenticationClass references.
-func NewZookeeperSecurity(clusterConfig *zkv1alpha1.ClusterConfigSpec) (*ZookeeperSecurity, error) {
-	resolvedAuthenticationClasses := "" // TODO, unsupported for now
+func NewZookeeperSecurity(
+	ctx context.Context,
+	k8sClient client.Client,
+	clusterConfig *zkv1alpha1.ClusterConfigSpec,
+) (*ZookeeperSecurity, error) {
+	var resolvedAuthenticationClasses *ResolvedAuthenticationClasses
+	var err error
+
+	// Resolve authentication classes if configured
+	if clusterConfig != nil && len(clusterConfig.Authentication) > 0 {
+		resolvedAuthenticationClasses, err = ResolveAuthenticationClasses(ctx, k8sClient, clusterConfig.Authentication)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve authentication classes: %w", err)
+		}
+	} else {
+		// Initialize with empty resolved authentication classes
+		resolvedAuthenticationClasses = &ResolvedAuthenticationClasses{
+			authenticationClasses: []authv1alpha1.AuthenticationClass{},
+		}
+	}
 
 	sslStorePassword := "changeit"
-	// quorumSecretClass := quorumTLSDefault()
-	// serverSecretClass := serverTLSDefault()
 	serverSecretClass := ""
 	quorumSecretClass := ""
 	if clusterConfig != nil && clusterConfig.Tls != nil {
 		serverSecretClass = clusterConfig.Tls.ServerSecretClass
 		quorumSecretClass = clusterConfig.Tls.QuorumSecretClass
 	}
+
 	return &ZookeeperSecurity{
 		resolvedAuthenticationClasses: resolvedAuthenticationClasses,
 		serverSecretClass:             serverSecretClass,
@@ -74,129 +127,8 @@ func NewZookeeperSecurity(clusterConfig *zkv1alpha1.ClusterConfigSpec) (*Zookeep
 }
 
 type ZookeeperSecurity struct {
-	resolvedAuthenticationClasses string
+	resolvedAuthenticationClasses *ResolvedAuthenticationClasses
 	serverSecretClass             string
 	quorumSecretClass             string
 	sslStorePassword              string
-}
-
-// TLSEnabled checks if TLS encryption is enabled based on server SecretClass or client AuthenticationClass.
-func (z *ZookeeperSecurity) TLSEnabled() bool {
-	return z.serverSecretClass != "" || z.resolvedAuthenticationClasses != ""
-}
-
-// ClientPort returns the ZooKeeper (secure) client port depending on TLS or authentication settings.
-func (z *ZookeeperSecurity) ClientPort() uint16 {
-	if z.TLSEnabled() {
-		return zkv1alpha1.SecureClientPort
-	}
-	return zkv1alpha1.ClientPort
-}
-
-// AddVolumeMounts adds required volumes and volume mounts to the pod and container builders depending on TLS and authentication settings.
-func (z *ZookeeperSecurity) AddVolumeMounts(podBuilder *corev1.PodTemplateSpec, zkContainer *corev1.Container) {
-	tlsSecretClass := z.getTLSSecretClass()
-	if tlsSecretClass != "" {
-		z.addVolumeMount(zkContainer, ServerTlsVolumeName, ServerTLSDir)
-		tlsVolume := util.CreateTlsKeystoreVolume(ServerTlsVolumeName, tlsSecretClass, z.sslStorePassword)
-		z.addVolume(podBuilder, tlsVolume)
-	}
-	if z.quorumSecretClass != "" {
-		z.addVolumeMount(zkContainer, QuorumTlsVolumeName, QuorumTLSDir)
-		quorumTLSVolume := util.CreateTlsKeystoreVolume(QuorumTlsVolumeName, z.quorumSecretClass, z.sslStorePassword)
-		z.addVolume(podBuilder, quorumTLSVolume)
-	}
-}
-
-// statefulset add tls volumes
-func (z *ZookeeperSecurity) addVolume(podSpec *corev1.PodTemplateSpec, volume corev1.Volume) {
-	podSpec.Spec.Volumes = append(podSpec.Spec.Volumes, volume)
-}
-
-// container add tls volume mount
-func (z *ZookeeperSecurity) addVolumeMount(container *corev1.Container, volumeName, mountPath string) {
-	container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{Name: volumeName, MountPath: mountPath})
-}
-
-// ConfigSettings returns required ZooKeeper configuration settings for the `zoo.cfg` properties file depending on TLS and authentication settings.
-func (z *ZookeeperSecurity) ConfigSettings() map[string]string {
-	config := make(map[string]string)
-
-	if z.quorumSecretClass != "" {
-		authNeeded := "need"
-		// Quorum TLS
-		config[SSLQuorum] = TrueString
-		config[SSLQuorumHostNameVerification] = TrueString
-		config[SSLQuorumClientAuth] = authNeeded
-		config[ServerCnxnFactory] = "org.apache.zookeeper.server.NettyServerCnxnFactory"
-		config[SSLAuthProviderX509] = "org.apache.zookeeper.server.auth.X509AuthenticationProvider"
-		config[SSLQuorumKeyStoreLocation] = fmt.Sprintf("%s/keystore.p12", QuorumTLSDir)
-		config[SSLQuorumTrustStoreLocation] = fmt.Sprintf("%s/truststore.p12", QuorumTLSDir)
-		if z.sslStorePassword != "" {
-			config[SSLQuorumKeyStorePassword] = z.sslStorePassword
-			config[SSLQuorumTrustStorePassword] = z.sslStorePassword
-		}
-	}
-
-	// Server TLS
-	if z.TLSEnabled() {
-		// We set only the clientPort and portUnification here because otherwise there is a port bind exception
-		// See: https://issues.apache.org/jira/browse/ZOOKEEPER-4276
-		// --> Normally we would like to only set the secureClientPort (check out commented code below)
-		// What we tried:
-		// 1) Set clientPort and secureClientPort will fail with
-		// "static.config different from dynamic config .. "
-		// config.insert(
-		//     Self::CLIENT_PORT_NAME.to_string(),
-		//     CLIENT_PORT.to_string(),
-		// );
-		// config.insert(
-		//     Self::SECURE_CLIENT_PORT_NAME.to_string(),
-		//     SECURE_CLIENT_PORT.to_string(),
-		// );
-
-		// 2) Setting only secureClientPort will config in the above mentioned bind exception.
-		// The NettyFactory tries to bind multiple times on the secureClientPort.
-		// config.insert(
-		//     Self::SECURE_CLIENT_PORT_NAME.to_string(),
-		//     self.client_port(.to_string()),
-		// );
-
-		// 3) Using the clientPort and portUnification still allows plaintext connection without
-		// authentication, but at least TLS and authentication works when connecting securely.
-		config[ZkClientPortConfigItem] = strconv.FormatUint(uint64(z.ClientPort()), 10)
-		config["client.portUnification"] = TrueString
-		config[SSLHostNameVerification] = TrueString
-		// todo and checked in init container. The keystore and truststore passwords should not be in the configmap and are generated
-		// and written later via script in the init container
-		config[SSLKeyStoreLocation] = fmt.Sprintf("%s/keystore.p12", ServerTLSDir)
-		config[SSLTrustStoreLocation] = fmt.Sprintf("%s/truststore.p12", ServerTLSDir)
-
-		if z.sslStorePassword != "" {
-			config[SSLKeyStorePassword] = z.sslStorePassword
-			config[SSLTrustStorePassword] = z.sslStorePassword
-		}
-
-		// todo auth tls
-		if z.resolvedAuthenticationClasses != "" {
-			config[SSLClientAuth] = "need"
-		}
-	} else {
-		config[ZkClientPortConfigItem] = strconv.FormatUint(uint64(z.ClientPort()), 10)
-	}
-
-	return config
-}
-
-// GetTLSSecretClass returns the SecretClass provided in an AuthenticationClass for TLS.
-func (z *ZookeeperSecurity) getTLSSecretClass() string {
-	authClass := z.resolvedAuthenticationClasses
-	if authClass != "" {
-		return authClass
-	}
-
-	if z.serverSecretClass != "" {
-		return z.serverSecretClass
-	}
-	return ""
 }
