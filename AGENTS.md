@@ -42,9 +42,10 @@ Manages Apache ZooKeeper deployments on Kubernetes. Handles creation, configurat
 ## Dependencies
 
 ### Internal
-- ../operator-go - Shared operator framework
+- github.com/zncdatadev/operator-go - Shared operator framework
 
 ### External
+- kubebuilder - Project scaffolding
 - controller-runtime
 - Kubernetes client-go
 
