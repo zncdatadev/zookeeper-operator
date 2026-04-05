@@ -55,3 +55,6 @@ target
 *.iws
 *.log
 *.tmp
+
+# ai tools
+.omc/
