@@ -11,6 +11,7 @@ import (
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
 	policyv1 "k8s.io/api/policy/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // ZkRoleGroupHandler implements reconciler.RoleGroupHandler for Zookeeper clusters.
@@ -100,11 +101,18 @@ func (h *ZkRoleGroupHandler) buildServerResources(
 func (h *ZkRoleGroupHandler) buildSecretProvisioner(zkSecurity *security.ZookeeperSecurity) *opgosecurity.SecretProvisioner {
 	provisioner := opgosecurity.NewSecretProvisioner()
 
-	// Server TLS: needed if serverSecretClass is set or TLS auth class exists
-	if zkSecurity.TLSEnabled() && zkSecurity.ServerSecretClass() != "" {
+	// Server TLS: always register when TLS is enabled.
+	// If serverSecretClass is not explicitly set, fall back to the default secret class.
+	if zkSecurity.TLSEnabled() {
+		serverClass := zkSecurity.ServerSecretClass()
+		if serverClass == "" {
+			serverClass = security.TlsDefaultSecretClass
+			log.Log.Info("TLS enabled without serverSecretClass; falling back to default secret class",
+				"serverSecretClass", serverClass)
+		}
 		provisioner.Register(opgosecurity.TLS(
 			security.ServerTlsVolumeName,
-			zkSecurity.ServerSecretClass(),
+			serverClass,
 		).WithPassword(zkSecurity.SSLStorePassword()))
 	}
 

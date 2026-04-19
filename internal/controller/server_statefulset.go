@@ -6,8 +6,10 @@ import (
 	"path"
 	"strings"
 
-	"github.com/zncdatadev/operator-go/pkg/reconciler"
+	"github.com/zncdatadev/zookeeper-operator/internal/util"
+
 	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
+	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	opgosecurity "github.com/zncdatadev/operator-go/pkg/security"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/constant"
@@ -89,9 +91,19 @@ func (h *ZkRoleGroupHandler) buildStatefulSet(
 
 	// TLS: add CSI secret volumes and volume mounts
 	sts.Spec.Template.Spec.Volumes = append(sts.Spec.Template.Spec.Volumes, secretProvisioner.Volumes()...)
-	sts.Spec.Template.Spec.Containers[0].VolumeMounts = append(
-		sts.Spec.Template.Spec.Containers[0].VolumeMounts,
-		secretProvisioner.VolumeMounts()...)
+	found := false
+	for i := range sts.Spec.Template.Spec.Containers {
+		if sts.Spec.Template.Spec.Containers[i].Name == "zookeeper" {
+			sts.Spec.Template.Spec.Containers[i].VolumeMounts = append(
+				sts.Spec.Template.Spec.Containers[i].VolumeMounts,
+				secretProvisioner.VolumeMounts()...)
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("container 'zookeeper' not found in StatefulSet spec")
+	}
 
 	return sts, nil
 }
@@ -205,7 +217,7 @@ func (h *ZkRoleGroupHandler) getEnvVars(
 ) []corev1.EnvVar {
 	envs := []corev1.EnvVar{
 		{Name: "MYID_OFFSET", Value: "1"},
-		{Name: "SERVER_JVMFLAGS", Value: jvmJmxOpts(zkv1alpha1.MetricsPort)},
+		{Name: "SERVER_JVMFLAGS", Value: util.JvmJmxOpts(zkv1alpha1.MetricsPort)},
 	}
 
 	// Heap limit from memory resources
@@ -321,21 +333,7 @@ func (h *ZkRoleGroupHandler) getReadinessProbe(zkSecurity *security.ZookeeperSec
 	}
 }
 
-// jvmJmxOpts generates JVM flags for JMX metrics and logback.
-func jvmJmxOpts(metricsPort int) string {
-	jmxDir := path.Join(constant.KubedoopRoot, "jmx")
-	opts := []string{
-		fmt.Sprintf("-javaagent:%s=%d:%s",
-			path.Join(jmxDir, "jmx_prometheus_javaagent.jar"),
-			metricsPort,
-			path.Join(jmxDir, "config.yaml")),
-		fmt.Sprintf("-Dlogback.configurationFile=%s", path.Join(constant.KubedoopConfigDir, "logback.xml")),
-		fmt.Sprintf("-Djava.security.properties=%s", path.Join(constant.KubedoopConfigDir, "security.properties")),
-	}
-	return strings.Join(opts, " ")
-}
-
 // Helper functions for pointer types
-func int64Ptr(v int64) *int64                                                { return &v }
-func boolPtr(v bool) *bool                                                   { return &v }
+func int64Ptr(v int64) *int64                                                  { return &v }
+func boolPtr(v bool) *bool                                                     { return &v }
 func volumeModePtr(v corev1.PersistentVolumeMode) *corev1.PersistentVolumeMode { return &v }

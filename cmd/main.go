@@ -26,10 +26,10 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	zookeeperv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/controller"
 	"github.com/zncdatadev/zookeeper-operator/internal/znodecontroller"
-	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"

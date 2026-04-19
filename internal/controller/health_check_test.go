@@ -251,8 +251,8 @@ func makePod(name, namespace, clusterName string) *corev1.Pod {
 			Name:      name,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app.kubernetes.io/instance":       clusterName,
-				"zookeeper.kubedoop.dev/role":      "server",
+				"app.kubernetes.io/instance":  clusterName,
+				"zookeeper.kubedoop.dev/role": "server",
 			},
 		},
 		Status: corev1.PodStatus{

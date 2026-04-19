@@ -108,8 +108,8 @@ func (z *ZkServiceHealthCheck) CheckHealthy(
 	// List server pods for this cluster
 	podList := &corev1.PodList{}
 	labelSelector := labels.SelectorFromSet(map[string]string{
-		"app.kubernetes.io/instance":       name,
-		"zookeeper.kubedoop.dev/role":      "server",
+		"app.kubernetes.io/instance":  name,
+		"zookeeper.kubedoop.dev/role": "server",
 	})
 	if err := k8sClient.List(ctx, podList, client.InNamespace(namespace), client.MatchingLabelsSelector{Selector: labelSelector}); err != nil {
 		return false, fmt.Errorf("failed to list pods: %w", err)

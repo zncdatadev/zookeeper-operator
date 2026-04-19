@@ -68,14 +68,14 @@ func CreateDiscoveryConfigMap(
 			Name:      cmName,
 			Namespace: znodeInfo.Namespace,
 			Labels: map[string]string{
-				"app.kubernetes.io/name":     strings.ToLower(zkCluster.Name),
+				"app.kubernetes.io/name":       strings.ToLower(zkCluster.Name),
 				"app.kubernetes.io/managed-by": "zookeeper-operator",
 			},
 		},
 		Data: map[string]string{
-			"ZOOKEEPER":       zkconn.URI,
-			"ZOOKEEPER_HOSTS": strings.Join(zkconn.Hosts, ","),
-			"ZOOKEEPER_PORT":  strconv.Itoa(int(zkconn.Port)),
+			"ZOOKEEPER":        zkconn.URI,
+			"ZOOKEEPER_HOSTS":  strings.Join(zkconn.Hosts, ","),
+			"ZOOKEEPER_PORT":   strconv.Itoa(int(zkconn.Port)),
 			"ZOOKEEPER_CHROOT": zkconn.ZNode,
 		},
 	}

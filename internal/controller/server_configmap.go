@@ -3,8 +3,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"sort"
-	"strings"
 
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	opgosecurity "github.com/zncdatadev/operator-go/pkg/security"
@@ -12,6 +10,7 @@ import (
 	"github.com/zncdatadev/zookeeper-operator/internal/common"
 	"github.com/zncdatadev/zookeeper-operator/internal/constant"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
+	"github.com/zncdatadev/zookeeper-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -92,7 +91,7 @@ func (h *ZkRoleGroupHandler) generateZooCfg(
 		}
 	}
 
-	return toProperties(zooCfg)
+	return util.ToProperties(zooCfg)
 }
 
 // generateServerList generates the server.N entries for zoo.cfg.
@@ -126,11 +125,11 @@ func (h *ZkRoleGroupHandler) generateSecurityProps(
 	// Check for overrides
 	if buildCtx.MergedConfig != nil {
 		if secOverrides, ok := buildCtx.MergedConfig.ConfigFiles[zkv1alpha1.SecurityFileName]; ok {
-			return toProperties(secOverrides)
+			return util.ToProperties(secOverrides)
 		}
 	}
 	// Default security properties
-	return toProperties(map[string]string{
+	return util.ToProperties(map[string]string{
 		"networkaddress.cache.ttl":          "5",
 		"networkaddress.cache.negative.ttl": "0",
 	})
@@ -150,22 +149,4 @@ func generateLogbackXml() string {
     <appender-ref ref="CONSOLE"/>
   </root>
 </configuration>`, consolePattern)
-}
-
-// toProperties converts a map to Java properties format.
-func toProperties(data map[string]string) string {
-	keys := make([]string, 0, len(data))
-	for k := range data {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var buf strings.Builder
-	for _, k := range keys {
-		buf.WriteString(k)
-		buf.WriteString("=")
-		buf.WriteString(data[k])
-		buf.WriteString("\n")
-	}
-	return buf.String()
 }

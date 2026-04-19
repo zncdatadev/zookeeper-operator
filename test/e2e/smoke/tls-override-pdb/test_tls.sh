@@ -47,9 +47,9 @@ export CLIENT_JVMFLAGS="
 -Dzookeeper.authProvider.x509=org.apache.zookeeper.server.auth.X509AuthenticationProvider
 -Dzookeeper.clientCnxnSocket=org.apache.zookeeper.ClientCnxnSocketNetty
 -Dzookeeper.client.secure=true
--Dzookeeper.ssl.keyStore.location=/kubedoop/server_tls/keystore.p12
+-Dzookeeper.ssl.keyStore.location=/kubedoop/mount/server-tls/keystore.p12
 -Dzookeeper.ssl.keyStore.password=${CLIENT_STORE_SECRET}
--Dzookeeper.ssl.trustStore.location=/kubedoop/server_tls/truststore.p12
+-Dzookeeper.ssl.trustStore.location=/kubedoop/mount/server-tls/truststore.p12
 -Dzookeeper.ssl.trustStore.password=${CLIENT_STORE_SECRET}"
 
 output=$(/kubedoop/zookeeper/bin/zkCli.sh -server "${SERVER}" ls / 2>&1)
@@ -73,9 +73,9 @@ export CLIENT_JVMFLAGS="
 -Dzookeeper.authProvider.x509=org.apache.zookeeper.server.auth.X509AuthenticationProvider
 -Dzookeeper.clientCnxnSocket=org.apache.zookeeper.ClientCnxnSocketNetty
 -Dzookeeper.client.secure=true
--Dzookeeper.ssl.keyStore.location=/kubedoop/quorum_tls/keystore.p12
+-Dzookeeper.ssl.keyStore.location=/kubedoop/mount/quorum-tls/keystore.p12
 -Dzookeeper.ssl.keyStore.password=${QUORUM_STORE_SECRET}
--Dzookeeper.ssl.trustStore.location=/kubedoop/quorum_tls/truststore.p12
+-Dzookeeper.ssl.trustStore.location=/kubedoop/mount/quorum-tls/truststore.p12
 -Dzookeeper.ssl.trustStore.password=${QUORUM_STORE_SECRET}"
 
 output=$(/kubedoop/zookeeper/bin/zkCli.sh -server "${SERVER}" ls / 2>&1)
