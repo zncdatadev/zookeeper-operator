@@ -3,8 +3,6 @@ package common
 import (
 	"fmt"
 	"strings"
-
-	"github.com/zncdatadev/operator-go/pkg/reconciler"
 )
 
 const (
@@ -13,18 +11,6 @@ const (
 
 func ClusterServiceName(instanceName string) string {
 	return instanceName
-}
-
-func StatefulsetName(roleGroupInfo *reconciler.RoleGroupInfo) string {
-	return roleGroupInfo.GetFullName()
-}
-
-func RoleGroupConfigMapName(roleGroupInfo *reconciler.RoleGroupInfo) string {
-	return roleGroupInfo.GetFullName()
-}
-
-func RoleGroupServiceName(roleGroupInfo *reconciler.RoleGroupInfo) string {
-	return roleGroupInfo.GetFullName()
 }
 
 func PodFQDN(podName, svcName, namespace string) string {

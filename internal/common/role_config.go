@@ -8,8 +8,8 @@ import (
 	"time"
 
 	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
-	"github.com/zncdatadev/operator-go/pkg/constants"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
+	"github.com/zncdatadev/zookeeper-operator/internal/constant"
 	"github.com/zncdatadev/zookeeper-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -30,8 +30,7 @@ type ZookeeperConfig struct {
 	myidOffset int
 
 	resources *commonsv1alpha1.ResourcesSpec
-	// Logging Logging `json:"logging,omitempty"`
-	common *GeneralNodeConfig
+	common    *GeneralNodeConfig
 
 	securityProps map[string]string
 }
@@ -95,8 +94,6 @@ func defaultResources() *commonsv1alpha1.ResourcesSpec {
 	}
 }
 
-// │ networkaddress.cache.negative.ttl=0
-// │ networkaddress.cache.ttl=5
 func DefautlSercurityProperties() map[string]string {
 	return map[string]string{
 		"networkaddress.cache.ttl":          "5",
@@ -120,7 +117,7 @@ func (n *ZookeeperConfig) defaultZooCfg() map[string]string {
 		INIT_LIMIT: strconv.Itoa(*n.initLimit),
 		SYNC_LIMIT: strconv.Itoa(*n.syncLimit),
 		TICK_TIME:  strconv.Itoa(*n.tickTime),
-		DATA_DIR:   constants.KubedoopDataDir,
+		DATA_DIR:   constant.KubedoopDataDir,
 	}
 }
 
@@ -191,8 +188,6 @@ func (n *ZookeeperConfig) MergeDefaultConfig(
 		configOverrides[zkv1alpha1.SecurityFileName] = n.securityProps
 	}
 	overrides.ConfigOverrides = configOverrides
-	// You can continue to add logic to handle other fields
-	// config.FieldByName("Logging").Set(reflect.ValueOf(n.common.Logging))
 	return nil
 }
 
