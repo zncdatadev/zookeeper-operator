@@ -101,7 +101,7 @@ func (h *ZkRoleGroupHandler) buildSecretProvisioner(zkSecurity *security.Zookeep
 	provisioner := opgosecurity.NewSecretProvisioner()
 
 	// Server TLS: needed if serverSecretClass is set or TLS auth class exists
-	if zkSecurity.TLSEnabled() {
+	if zkSecurity.TLSEnabled() && zkSecurity.ServerSecretClass() != "" {
 		provisioner.Register(opgosecurity.TLS(
 			security.ServerTlsVolumeName,
 			zkSecurity.ServerSecretClass(),

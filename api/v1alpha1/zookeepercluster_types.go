@@ -102,11 +102,9 @@ func (z *ZookeeperCluster) GetObjectMeta() *metav1.ObjectMeta {
 	return &z.ObjectMeta
 }
 
-// GetScheme returns the runtime scheme.
+// GetScheme returns the cached runtime scheme.
 func (z *ZookeeperCluster) GetScheme() *runtime.Scheme {
-	scheme := runtime.NewScheme()
-	_ = SchemeBuilder.AddToScheme(scheme)
-	return scheme
+	return cachedScheme
 }
 
 // DeepCopyCluster creates a deep copy of the cluster.
@@ -342,6 +340,11 @@ type ConfigSpec struct {
 	TickTime int32 `json:"tickTime,omitempty"`
 }
 
+// cachedScheme is initialized once and reused across all reconcile calls.
+var cachedScheme *runtime.Scheme
+
 func init() {
 	SchemeBuilder.Register(&ZookeeperCluster{}, &ZookeeperClusterList{})
+	cachedScheme = runtime.NewScheme()
+	_ = SchemeBuilder.AddToScheme(cachedScheme)
 }
