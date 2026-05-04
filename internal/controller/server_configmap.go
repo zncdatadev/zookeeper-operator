@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	opgosecurity "github.com/zncdatadev/operator-go/pkg/security"
@@ -37,6 +38,13 @@ func (h *ZkRoleGroupHandler) buildConfigMap(
 
 	// 3. Generate logback.xml
 	data["logback.xml"] = generateLogbackXml()
+
+	// 4. Generate vector.yaml if logging is enabled
+	vectorData, err := h.buildVectorConfigMapData(ctx, k8sClient, cr, buildCtx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build vector config: %w", err)
+	}
+	maps.Copy(data, vectorData)
 
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{

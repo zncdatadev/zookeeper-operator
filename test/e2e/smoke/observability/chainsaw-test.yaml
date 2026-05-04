@@ -33,7 +33,7 @@ spec:
           echo "Waiting for ZooKeeper pods to be created..."
           i=0
           while [ $i -lt 60 ]; do
-            pod_count=$(kubectl -n $NAMESPACE get pod -l app.kubernetes.io/name=zookeepercluster,app.kubernetes.io/role-group=default --no-headers 2>/dev/null | wc -l)
+            pod_count=$(kubectl -n $NAMESPACE get pod -l app.kubernetes.io/component=default --no-headers 2>/dev/null | wc -l)
             if [ "$pod_count" -gt 0 ]; then
               echo "Pods created, found $pod_count pod(s)"
               break
@@ -48,10 +48,10 @@ spec:
 
           # Now wait for pods to be ready
           echo "Waiting for ZooKeeper pods to be ready..."
-          kubectl -n $NAMESPACE wait --for=condition=Ready pod -l app.kubernetes.io/name=zookeepercluster,app.kubernetes.io/role-group=default --timeout=300s
+          kubectl -n $NAMESPACE wait --for=condition=Ready pod -l app.kubernetes.io/component=default --timeout=300s
 
           # Get pod name
-          pod_name=$(kubectl -n $NAMESPACE get pod -l app.kubernetes.io/name=zookeepercluster,app.kubernetes.io/role-group=default -o jsonpath='{.items[0].metadata.name}')
+          pod_name=$(kubectl -n $NAMESPACE get pod -l app.kubernetes.io/component=default -o jsonpath='{.items[0].metadata.name}')
           echo "Testing pod: $pod_name"
 
           # Test JMX exporter metrics endpoint (port 9505)

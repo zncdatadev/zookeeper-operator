@@ -7,8 +7,11 @@ import (
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	opgosecurity "github.com/zncdatadev/operator-go/pkg/security"
+	"github.com/zncdatadev/operator-go/pkg/sidecar"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
+	"github.com/zncdatadev/zookeeper-operator/internal/constant"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
+	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -85,6 +88,41 @@ func (h *ZkRoleGroupHandler) buildServerResources(
 		zkv1alpha1.MetricsPort,
 		labels,
 	).Build()
+
+	// Inject Vector sidecar if logging is enabled
+	if buildCtx.SidecarManager != nil {
+		// Override VectorSidecarProvider's ConfigMap name to match our ConfigMap
+		if provider, ok := buildCtx.SidecarManager.GetProvider("vector"); ok {
+			if vp, ok := provider.(*sidecar.VectorSidecarProvider); ok {
+				vp.WithConfigMapName(buildCtx.ResourceName)
+			}
+		}
+		// Set MainContainerName explicitly
+		if cfg, ok := buildCtx.SidecarManager.GetConfig("vector"); ok {
+			cfg.MainContainerName = "zookeeper"
+		}
+		// Set product image (GenericReconciler skips this for non-BaseRoleGroupHandler)
+		if err := buildCtx.SidecarManager.SetProductImage(image, corev1.PullIfNotPresent); err != nil {
+			return nil, fmt.Errorf("failed to set product image on sidecars: %w", err)
+		}
+		if err := buildCtx.SidecarManager.InjectAll(&sts.Spec.Template.Spec); err != nil {
+			return nil, fmt.Errorf("failed to inject sidecars: %w", err)
+		}
+		// Bridge log volume: mount ZK's log volume into Vector so it can read ZK logs
+		for i := range sts.Spec.Template.Spec.Containers {
+			if sts.Spec.Template.Spec.Containers[i].Name == "vector" {
+				sts.Spec.Template.Spec.Containers[i].VolumeMounts = append(
+					sts.Spec.Template.Spec.Containers[i].VolumeMounts,
+					corev1.VolumeMount{
+						Name:      zkv1alpha1.LogDirName,
+						MountPath: constant.KubedoopLogDir,
+						ReadOnly:  true,
+					},
+				)
+				break
+			}
+		}
+	}
 
 	return &reconciler.RoleGroupResources{
 		ConfigMap:           configMap,
