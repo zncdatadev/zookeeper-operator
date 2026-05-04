@@ -1,6 +1,6 @@
 module github.com/zncdatadev/zookeeper-operator
 
-go 1.25.5
+go 1.25.8
 
 require (
 	emperror.dev/errors v0.8.1
