@@ -110,10 +110,11 @@ runs the following jobs:
 - **Golang Lint** — Runs golangci-lint
 - **Golang Test** — Runs unit tests
 - **Chainsaw Test** — Runs Chainsaw E2E tests across multiple Kubernetes versions
-  (1.33, 1.34, 1.35)
+
 - **CRD Sync Check** — Verifies CRDs are in sync with manifests
 - **Chart Linter (Artifact Hub)** — Validates Helm chart metadata
-- **Chart Lint & Test** — Validates and tests the Helm chart
+- **Chart Lint Helm** — Validates the Helm chart with `ct lint` and installs it with `ct install`
+- **Chart E2E** — Runs Chainsaw E2E tests against a Helm-installed release
 - **Release Image** — Builds and pushes multi-arch Docker image using the root
   Dockerfile to `quay.io/zncdatadev/zookeeper-operator:<version>`, and signs the
   image with Cosign
@@ -164,7 +165,7 @@ git push upstream 0.4.0
 
 ### Chart release failed
 
-If the `chart-lint-test` or `release-chart` job fails, check the workflow logs
+If the `chart-lint-helm` or `release-chart` job fails, check the workflow logs
 for details. Common issues include:
 
 - **CRDs out of sync**: Run `make manifests` and `make helm-crd-sync` to
