@@ -179,7 +179,7 @@ jobs:
         run: ah lint
 
 
-  chart-lint-test:
+  chart-lint-helm:
     runs-on: ubuntu-latest
     needs:
       - check-crds-sync
@@ -300,25 +300,48 @@ jobs:
           kind load docker-image quay.io/zncdatadev/zookeeper-operator:$VERSION
 
       - name: Run chart-testing (install)
-        id: ct-test
         if: steps.check-changes.outputs.changed == 'true'
         run: |
           ct install \
             --since "${{ steps.commit-range.outputs.since_commit }}" \
             --target-branch "${{ steps.commit-range.outputs.target_branch }}" \
             --config ./.github/configs/ct-install.yaml
-          # Save success result to github output
-          if [[ $? -eq 0 ]]; then
-            echo "ct_tested=true" >> "$GITHUB_OUTPUT"
-          fi
+
+
+  chart-e2e:
+    runs-on: ubuntu-latest
+    needs:
+      - chart-lint-helm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Build docker image
+        run: make docker-build
 
       - name: Build helm chart
-        if: steps.ct-test.outputs.ct_tested == 'true'
+        run: make helm-chart-package
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.14.0
+        with:
+          cluster_name: kind
+
+      - name: Load images to cluster
         run: |
-          make helm-chart-package
+          kind load docker-image quay.io/zncdatadev/zookeeper-operator:$VERSION
 
       - name: Run e2e with chart
-        if: steps.ct-test.outputs.ct_tested == 'true'
         run: |
           HELM_DEPENDENCIES=(
             commons-operator
@@ -326,15 +349,12 @@ jobs:
             secret-operator
           )
 
-          # Install dependencies
           for dep in "${HELM_DEPENDENCIES[@]}"; do
             helm upgrade --install --create-namespace --namespace kubedoop-operators --wait $dep oci://quay.io/kubedoopcharts/$dep --version $VERSION
           done
 
-          # Install packaged operator chart
           helm install --create-namespace --namespace zookeeper-operator --wait zookeeper-operator ./target/charts/zookeeper-operator-$VERSION.tgz
 
-          # E2E tests
           make chainsaw
           ./bin/chainsaw test --test-dir ./test/e2e/
 
@@ -345,7 +365,8 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - chart-linter-artifacthub
-      - chart-lint-test
+      - chart-lint-helm
+      - chart-e2e
     steps:
       - name: Clone the code
         uses: actions/checkout@v6
