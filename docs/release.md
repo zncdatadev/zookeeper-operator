@@ -21,8 +21,9 @@ number:
 1. When a tag (e.g., `0.4.0`) is pushed, the
    [Release workflow](../.github/workflows/release.yml) sets `VERSION` from
    `github.ref_name`
-2. **Docker image** — uses `VERSION` directly:
-   `quay.io/zncdatadev/zookeeper-operator:<version>`
+2. **Docker images** — uses `VERSION` directly:
+   `quay.io/zncdatadev/zookeeper-operator:<version>` (operator) and
+   `# CSI driver not applicable for zookeeper-operator:<version>` (CSI driver)
 3. **Helm chart** — `helm package --version $(VERSION) --app-version $(VERSION)`
    overrides the values in `Chart.yaml` during packaging
 4. **Helm chart publish** — pushes to
@@ -77,8 +78,9 @@ git push upstream x.y.z-dev
 Wait for the release workflow to complete. Verify:
 
 - All jobs pass successfully
-- Docker image is available at
-  `quay.io/zncdatadev/zookeeper-operator:x.y.z-dev`
+- Docker images are available at
+  `quay.io/zncdatadev/zookeeper-operator:x.y.z-dev` and
+  `# CSI driver not applicable for zookeeper-operator:x.y.z-dev`
 - Helm chart is available at
   `quay.io/kubedoopcharts/zookeeper-operator:x.y.z-dev`
 
@@ -110,13 +112,14 @@ runs the following jobs:
 - **Golang Lint** — Runs golangci-lint
 - **Golang Test** — Runs unit tests
 - **Chainsaw Test** — Runs Chainsaw E2E tests across multiple Kubernetes versions
-  (1.33, 1.34, 1.35)
 - **CRD Sync Check** — Verifies CRDs are in sync with manifests
 - **Chart Linter (Artifact Hub)** — Validates Helm chart metadata
-- **Chart Lint & Test** — Validates and tests the Helm chart
-- **Release Image** — Builds and pushes multi-arch Docker image using the root
-  Dockerfile to `quay.io/zncdatadev/zookeeper-operator:<version>`, and signs the
-  image with Cosign
+- **Chart Lint Helm** — Validates the Helm chart with `ct lint` and installs it with `ct install`
+- **Chart E2E** — Runs Chainsaw E2E tests against a Helm-installed release
+- **Release Image** — Builds and pushes one multi-arch Docker image to
+  `quay.io/zncdatadev/zookeeper-operator:<version>` (operator) and
+  `# CSI driver not applicable for zookeeper-operator:<version>` (CSI driver), and signs
+  both images with Cosign
 - **Release Chart** — Publishes the Helm chart to
   `quay.io/kubedoopcharts/zookeeper-operator:<version>` (OCI registry) and
   updates the [kubedoop-helm-charts](https://github.com/zncdatadev/kubedoop-helm-charts)
@@ -164,7 +167,7 @@ git push upstream 0.4.0
 
 ### Chart release failed
 
-If the `chart-lint-test` or `release-chart` job fails, check the workflow logs
+If the `chart-lint-helm` or `release-chart` job fails, check the workflow logs
 for details. Common issues include:
 
 - **CRDs out of sync**: Run `make manifests` and `make helm-crd-sync` to
