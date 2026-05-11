@@ -6,7 +6,7 @@ import (
 
 const (
 	DefaultRepository     = "quay.io/zncdatadev"
-	DefaultProductVersion = "3.9.2"
+	DefaultProductVersion = "3.9.3"
 	DefaultProductName    = "zookeeper"
 )
 
