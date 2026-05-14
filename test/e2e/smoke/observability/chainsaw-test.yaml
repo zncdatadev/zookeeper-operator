@@ -129,14 +129,14 @@ spec:
             # Query with retries
             for i in {1..3}; do
               TARGETS=$(curl -s http://localhost:9090/api/v1/targets 2>/dev/null)
-              if [[ -n "$TARGETS" ]]; then
+              if [ -n "$TARGETS" ]; then
                 break
               fi
               echo "Retry $i/3..."
               sleep 2
             done
 
-            if [[ -z "$TARGETS" ]]; then
+            if [ -z "$TARGETS" ]; then
               echo "✗ Failed to query Prometheus targets"
               exit 1
             fi
