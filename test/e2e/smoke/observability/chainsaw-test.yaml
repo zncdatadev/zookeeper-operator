@@ -56,31 +56,33 @@ spec:
 
           # Test JMX exporter metrics endpoint (port 9505)
           echo "=== Testing JMX exporter on port 9505 ==="
-          if ! kubectl -n $NAMESPACE exec $pod_name -- curl -f -s http://localhost:9505/metrics > /dev/null; then
+          METRICS_FILE=$(mktemp)
+          if ! kubectl -n $NAMESPACE exec $pod_name -- curl -f -s http://localhost:9505/metrics > "$METRICS_FILE"; then
             echo "✗ Error: could not access JMX exporter monitoring on port 9505"
+            rm -f "$METRICS_FILE"
             exit 1
           fi
           echo "✓ JMX exporter accessible"
 
-          # Show sample JMX metrics
-          echo "Sample metrics:"
-          kubectl -n $NAMESPACE exec $pod_name -- curl -s http://localhost:9505/metrics | head -20
-
           # Verify JMX metrics content
-          if kubectl -n $NAMESPACE exec $pod_name -- curl -s http://localhost:9505/metrics | grep -q "jvm_"; then
+          if grep -q "jvm_" "$METRICS_FILE"; then
             echo "✓ JVM metrics found"
           else
             echo "✗ JVM metrics not found"
+            rm -f "$METRICS_FILE"
             exit 1
           fi
 
           # Verify ZooKeeper specific metrics
-          if kubectl -n $NAMESPACE exec $pod_name -- curl -s http://localhost:9505/metrics | grep -q "zookeeper_"; then
+          if grep -q "zookeeper_" "$METRICS_FILE"; then
             echo "✓ ZooKeeper metrics found"
           else
             echo "✗ ZooKeeper metrics not found"
+            rm -f "$METRICS_FILE"
             exit 1
           fi
+
+          rm -f "$METRICS_FILE"
 
           echo ""
           echo "✓ Metrics endpoint connectivity test passed"
