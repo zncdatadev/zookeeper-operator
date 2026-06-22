@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -147,11 +148,14 @@ func (d *discoverer) getPodHosts() ([]string, error) {
 		if rg.Replicas > 0 {
 			replicas = rg.Replicas
 		}
-		roleGroupServiceName := fmt.Sprintf("%s-%s", d.zkCluster.Name, name)
+		// Resource name is "<cluster>-<role>-<group>" (framework convention); the StatefulSet
+		// is governed by the headless service "<resource>-headless".
+		roleGroupServiceName := reconciler.RoleGroupResourceName(d.zkCluster.Name, "server", name)
+		headlessServiceName := roleGroupServiceName + "-headless"
 		for i := int32(0); i < replicas; i++ {
 			podName := fmt.Sprintf("%s-%d", roleGroupServiceName, i)
 			fqdn := fmt.Sprintf("%s.%s.%s.svc.cluster.local:%d",
-				podName, roleGroupServiceName, d.zkCluster.Namespace, clientPort)
+				podName, headlessServiceName, d.zkCluster.Namespace, clientPort)
 			hosts = append(hosts, fqdn)
 		}
 	}

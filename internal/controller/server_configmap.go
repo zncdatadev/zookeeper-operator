@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 
+	"github.com/zncdatadev/operator-go/pkg/config"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	opgosecurity "github.com/zncdatadev/operator-go/pkg/security"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
@@ -37,7 +38,11 @@ func (h *ZkRoleGroupHandler) buildConfigMap(
 	data[zkv1alpha1.SecurityFileName] = h.generateSecurityProps(buildCtx)
 
 	// 3. Generate logback.xml
-	data["logback.xml"] = generateLogbackXml()
+	logbackXML, err := generateLogbackXml()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate logback config: %w", err)
+	}
+	data["logback.xml"] = logbackXML
 
 	// 4. Generate vector.yaml if logging is enabled
 	vectorData, err := h.buildVectorConfigMapData(ctx, k8sClient, cr, buildCtx)
@@ -119,7 +124,9 @@ func (h *ZkRoleGroupHandler) generateServerList(
 		zkMyId := i + minServerId
 		serverKey := fmt.Sprintf("server.%d", zkMyId)
 		podName := fmt.Sprintf("%s-%d", buildCtx.ResourceName, i)
-		podFQDN := common.PodFQDN(podName, buildCtx.ResourceName, buildCtx.ClusterNamespace)
+		// The StatefulSet is governed by the framework's headless service, named
+		// "<resource>-headless"; pod DNS resolves under that service.
+		podFQDN := common.PodFQDN(podName, buildCtx.ResourceName+"-headless", buildCtx.ClusterNamespace)
 		server := fmt.Sprintf("%s:2888:3888;%d", podFQDN, zkSecurity.ClientPort())
 		servers[serverKey] = server
 	}
@@ -143,18 +150,16 @@ func (h *ZkRoleGroupHandler) generateSecurityProps(
 	})
 }
 
-// generateLogbackXml generates a simple logback.xml configuration.
-func generateLogbackXml() string {
-	consolePattern := "%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n"
-	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
-<configuration>
-  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-    <encoder>
-      <pattern>%s</pattern>
-    </encoder>
-  </appender>
-  <root level="INFO">
-    <appender-ref ref="CONSOLE"/>
-  </root>
-</configuration>`, consolePattern)
+// generateLogbackXml generates the logback.xml configuration using the framework's logback
+// generator.
+//
+// The FileOutputPath adds a bounded rolling FILE appender writing to
+// {KubedoopLogDir}/zookeeper.stdout.log (in addition to the console appender). The Vector
+// sidecar's `files_stdout` source globs {LogDir}/*.stdout.log, so this file is what makes
+// log aggregation actually collect ZooKeeper logs.
+func generateLogbackXml() (string, error) {
+	return config.GenerateLogbackWithOptions(nil, config.LogbackOptions{
+		Pattern:        "%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n",
+		FileOutputPath: constant.KubedoopLogDir + "/zookeeper.stdout.log",
+	})
 }

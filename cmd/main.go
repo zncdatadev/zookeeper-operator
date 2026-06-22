@@ -26,6 +26,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	opcommon "github.com/zncdatadev/operator-go/pkg/common"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	zookeeperv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/controller"
@@ -153,7 +154,13 @@ func main() {
 	}
 
 	// Setup ZookeeperCluster controller using GenericReconciler
-	zkHandler := &controller.ZkRoleGroupHandler{}
+	zkHandler := controller.NewZkRoleGroupHandler(mgr.GetScheme())
+
+	// Register cluster-scope extension that creates the cluster-wide client Service.
+	// The service is named after the cluster and is required by the ZookeeperZnode
+	// controller (which connects via the cluster service DNS) and by external-unstable
+	// (NodePort) discovery (which reads the NodePort from this service).
+	opcommon.GetExtensionRegistry().RegisterClusterExtension(controller.NewClusterServiceExtension(mgr.GetScheme()))
 
 	podExec, err := controller.NewPodExec(mgr.GetConfig())
 	if err != nil {
@@ -167,6 +174,7 @@ func main() {
 		Recorder:           mgr.GetEventRecorderFor("zookeeper-cluster-controller"),
 		RoleGroupHandler:   zkHandler,
 		ServiceHealthCheck: controller.NewZkServiceHealthCheck(podExec),
+		ServiceAccountName: zookeeperv1alpha1.DefaultProductName,
 		Prototype:          &zookeeperv1alpha1.ZookeeperCluster{},
 	})
 	if err != nil {

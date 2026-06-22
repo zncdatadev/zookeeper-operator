@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/zncdatadev/operator-go/pkg/common"
+	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
 	corev1 "k8s.io/api/core/v1"
@@ -47,7 +48,7 @@ func (e *PodExec) Exec(ctx context.Context, namespace, podName string, command [
 		SubResource("exec").
 		VersionedParams(&corev1.PodExecOptions{
 			Command:   command,
-			Container: "zookeeper",
+			Container: "server",
 			Stdin:     false,
 			Stdout:    true,
 			Stderr:    false,
@@ -108,8 +109,8 @@ func (z *ZkServiceHealthCheck) CheckHealthy(
 	// List server pods for this cluster
 	podList := &corev1.PodList{}
 	labelSelector := labels.SelectorFromSet(map[string]string{
-		"app.kubernetes.io/instance":  name,
-		"zookeeper.kubedoop.dev/role": "server",
+		reconciler.ClusterLabelKey(LabelDomain): name,
+		reconciler.RoleLabelKey(LabelDomain):    "server",
 	})
 	if err := k8sClient.List(ctx, podList, client.InNamespace(namespace), client.MatchingLabelsSelector{Selector: labelSelector}); err != nil {
 		return false, fmt.Errorf("failed to list pods: %w", err)

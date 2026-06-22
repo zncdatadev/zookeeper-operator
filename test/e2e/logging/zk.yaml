@@ -47,7 +47,7 @@ spec:
           logging:
             enableVectorAgent: true
             containers:
-              zookeeper:
+              server:
                 loggers:
                   org.apache.zookeeper:
                     level: INFO

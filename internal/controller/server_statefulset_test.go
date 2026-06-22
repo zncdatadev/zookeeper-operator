@@ -6,8 +6,11 @@ import (
 
 	"context"
 
+	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
+	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -43,6 +46,36 @@ var _ = Describe("ServerStatefulSet", func() {
 		It("should use ClientPort from security config", func() {
 			zkSecurity := newTestZookeeperSecurity()
 			Expect(zkSecurity.ClientPort()).To(BeEquivalentTo(zkv1alpha1.ClientPort))
+		})
+	})
+
+	Describe("ensureStorageDefault", func() {
+		It("defaults storage to 10Gi when resources.storage is unset (minimal CR)", func() {
+			h := &ZkRoleGroupHandler{}
+			// RoleGroupSpec.Config nil → previously produced a dangling data mount with no PVC.
+			buildCtx := &reconciler.RoleGroupBuildContext{}
+			h.ensureStorageDefault(buildCtx)
+
+			cfg := buildCtx.RoleGroupSpec.Config
+			Expect(cfg).NotTo(BeNil())
+			Expect(cfg.Resources).NotTo(BeNil())
+			Expect(cfg.Resources.Storage).NotTo(BeNil())
+			Expect(cfg.Resources.Storage.Capacity.String()).To(Equal("10Gi"))
+		})
+
+		It("keeps a user-specified storage capacity", func() {
+			h := &ZkRoleGroupHandler{}
+			buildCtx := &reconciler.RoleGroupBuildContext{
+				RoleGroupSpec: commonsv1alpha1.RoleGroupSpec{
+					Config: &commonsv1alpha1.RoleGroupConfigSpec{
+						Resources: &commonsv1alpha1.ResourcesSpec{
+							Storage: &commonsv1alpha1.StorageResource{Capacity: resource.MustParse("5Gi")},
+						},
+					},
+				},
+			}
+			h.ensureStorageDefault(buildCtx)
+			Expect(buildCtx.RoleGroupSpec.Config.Resources.Storage.Capacity.String()).To(Equal("5Gi"))
 		})
 	})
 })

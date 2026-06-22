@@ -14,5 +14,6 @@ spec:
       protocol: TCP
       targetPort: metrics
   selector:
-    app.kubernetes.io/component: default
+    zookeeper.kubedoop.dev/cluster: test-zk-metrics
     zookeeper.kubedoop.dev/role: server
+    zookeeper.kubedoop.dev/role-group: default

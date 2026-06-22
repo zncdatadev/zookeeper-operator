@@ -6,7 +6,9 @@ import (
 )
 
 const (
-	ZkServerContainerName = "zookeeper"
+	// ZkServerContainerName is the name of the main Zookeeper container. It matches the
+	// role name ("server") and the app.kubernetes.io/component label.
+	ZkServerContainerName = "server"
 )
 
 func ClusterServiceName(instanceName string) string {

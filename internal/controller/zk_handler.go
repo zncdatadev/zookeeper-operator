@@ -12,17 +12,56 @@ import (
 	"github.com/zncdatadev/zookeeper-operator/internal/constant"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
 	corev1 "k8s.io/api/core/v1"
-	policyv1 "k8s.io/api/policy/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// ZkRoleGroupHandler implements reconciler.RoleGroupHandler for Zookeeper clusters.
-// It builds all Kubernetes resources (ConfigMap, Services, StatefulSet, PDB) for each server role group.
-type ZkRoleGroupHandler struct{}
+// ZkRoleGroupHandler builds the resources for a Zookeeper server role group.
+//
+// It embeds reconciler.BaseRoleGroupHandler to inherit the framework's canonical resource
+// construction (labels, headless/client Services, builder-built StatefulSet with the data
+// PVC, PodDisruptionBudget, sidecar injection), then customizes the returned StatefulSet
+// and ConfigMap with Zookeeper specifics (start command, exec probes, TLS volumes, config
+// files). The myid init container is injected through the SidecarManager like any other
+// container — see registerServerContainers.
+type ZkRoleGroupHandler struct {
+	reconciler.BaseRoleGroupHandler[*zkv1alpha1.ZookeeperCluster]
+}
 
-// Verify interface compliance
 var _ reconciler.RoleGroupHandler[*zkv1alpha1.ZookeeperCluster] = &ZkRoleGroupHandler{}
+
+// LabelDomain is the product domain used for identity (selector) labels:
+// zookeeper.kubedoop.dev/{cluster,role,role-group}. The product-domain prefix guarantees
+// these selectors never match another product's pods.
+const LabelDomain = "zookeeper.kubedoop.dev"
+
+// NewZkRoleGroupHandler creates a handler with the framework-level options that are constant
+// across reconciliations. Per-CR options (image, ports) are set in BuildResources.
+func NewZkRoleGroupHandler(scheme *runtime.Scheme) *ZkRoleGroupHandler {
+	h := &ZkRoleGroupHandler{}
+	h.Scheme = scheme
+	h.ImagePullPolicy = corev1.PullIfNotPresent
+	h.RoleImages = map[string]string{}
+	h.RoleContainerPorts = map[string][]corev1.ContainerPort{}
+	h.RoleServicePorts = map[string][]corev1.ServicePort{}
+	// app.kubernetes.io/name identifies the product on every resource/pod. The framework's
+	// canonical labels (instance + component=role + managed-by=operator-go) are not enough to
+	// distinguish products in a shared namespace — component=server is generic and managed-by
+	// is shared by all operator-go operators — so the cluster Service selector also keys on
+	// this name (see ClusterServiceExtension) to avoid selecting another product's pods.
+	h.ExtraLabels = map[string]string{
+		"app.kubernetes.io/name": zkv1alpha1.DefaultProductName,
+	}
+	h.ExtraAnnotations = map[string]string{}
+	// ZK peers must resolve each other before readiness, and data must be persistent.
+	h.PublishNotReadyAddresses = true
+	h.StorageMountPath = constant.KubedoopDataDir
+	// Product-owned identity labels drive all resource selectors (decoupled from the
+	// descriptive app.kubernetes.io/* labels).
+	h.LabelDomain = LabelDomain
+	return h
+}
 
 // BuildResources builds all Kubernetes resources for a Zookeeper server role group.
 func (h *ZkRoleGroupHandler) BuildResources(
@@ -34,104 +73,91 @@ func (h *ZkRoleGroupHandler) BuildResources(
 	if buildCtx.RoleName != "server" {
 		return nil, fmt.Errorf("unsupported role: %s", buildCtx.RoleName)
 	}
-	return h.buildServerResources(ctx, k8sClient, cr, buildCtx)
-}
 
-// buildServerResources creates all resources for the server role group.
-func (h *ZkRoleGroupHandler) buildServerResources(
-	ctx context.Context,
-	k8sClient client.Client,
-	cr *zkv1alpha1.ZookeeperCluster,
-	buildCtx *reconciler.RoleGroupBuildContext,
-) (*reconciler.RoleGroupResources, error) {
-	// Resolve security configuration (TLS, authentication)
+	// Resolve Zookeeper-specific inputs.
 	zkSecurity, err := security.NewZookeeperSecurity(ctx, k8sClient, cr.Spec.ClusterConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create zookeeper security: %w", err)
 	}
-
-	// Build SecretProvisioner and register CSI secret volumes
 	secretProvisioner := h.buildSecretProvisioner(zkSecurity)
-
-	// Resolve container image
 	image := h.resolveImage(cr)
 	replicas := buildCtx.RoleGroupSpec.GetReplicas()
-	labels := h.buildLabels(buildCtx)
 
-	// Build ConfigMap (zoo.cfg, security.properties, logback.xml)
-	configMap, err := h.buildConfigMap(ctx, k8sClient, cr, buildCtx, labels, zkSecurity, secretProvisioner, replicas)
+	// Configure the per-CR base inputs.
+	h.Image = image
+	h.SetRoleContainerPorts("server", h.containerPorts(zkSecurity))
+	h.SetRoleServicePorts("server", h.servicePorts(zkSecurity))
+	// Ensure the data PVC is built even when the user omits resources.storage.
+	h.ensureStorageDefault(buildCtx)
+
+	// Register the containers that the SidecarManager will inject (myid init container +
+	// product image on Vector). This must happen before base.BuildResources(), which runs
+	// SidecarManager.InjectAll() internally.
+	if err := h.registerServerContainers(buildCtx, image); err != nil {
+		return nil, err
+	}
+
+	// Let the framework build the skeleton: canonical labels, headless Service (with
+	// PublishNotReadyAddresses), client Service, StatefulSet (data PVC + injected
+	// sidecars/init), and PodDisruptionBudget.
+	res, err := h.BaseRoleGroupHandler.BuildResources(ctx, k8sClient, cr, buildCtx)
+	if err != nil {
+		return nil, fmt.Errorf("base build failed: %w", err)
+	}
+
+	// Customize the StatefulSet with Zookeeper specifics.
+	if err := h.customizeStatefulSet(res.StatefulSet, buildCtx, zkSecurity, secretProvisioner); err != nil {
+		return nil, err
+	}
+
+	// Replace the ConfigMap with computed Zookeeper config (zoo.cfg, security.properties,
+	// logback.xml, vector.yaml). Reuse the framework labels base put on the StatefulSet.
+	cm, err := h.buildConfigMap(ctx, k8sClient, cr, buildCtx, res.StatefulSet.Labels, zkSecurity, secretProvisioner, replicas)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build configmap: %w", err)
 	}
+	res.ConfigMap = cm
 
-	// Build Headless Service (for StatefulSet network identity)
-	headlessSvc := h.buildHeadlessService(buildCtx, labels, zkSecurity)
-
-	// Build Client Service (ClusterIP or NodePort based on listener class)
-	isNodePort := cr.Spec.ClusterConfig != nil &&
-		cr.Spec.ClusterConfig.ListenerClass == zkv1alpha1.ExternalUnstable
-	clientSvc := h.buildClientService(buildCtx, labels, zkSecurity, bool(isNodePort))
-
-	// Build StatefulSet
-	sts, err := h.buildStatefulSet(ctx, k8sClient, cr, buildCtx, labels, zkSecurity, secretProvisioner, image, replicas)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build statefulset: %w", err)
+	// The client Service is NodePort for the external-unstable listener class.
+	if res.Service != nil && cr.Spec.ClusterConfig != nil &&
+		cr.Spec.ClusterConfig.ListenerClass == zkv1alpha1.ExternalUnstable {
+		res.Service.Spec.Type = corev1.ServiceTypeNodePort
 	}
 
-	// Build PodDisruptionBudget
-	pdb := h.buildPDB(buildCtx, labels)
-
-	// Build Metrics Service (headless with Prometheus annotations)
-	metricsSvc := builder.NewMetricsServiceBuilder(
+	// Metrics Service (headless with Prometheus scrape annotations). Its selector uses the
+	// identity labels, consistent with the other role-group resources.
+	res.MetricsService = builder.NewMetricsServiceBuilder(
 		buildCtx.ResourceName,
 		buildCtx.ClusterNamespace,
 		zkv1alpha1.MetricsPort,
-		labels,
-	).Build()
+		res.StatefulSet.Labels,
+	).WithSelector(h.SelectorLabels(buildCtx)).Build()
 
-	// Inject Vector sidecar if logging is enabled
-	if buildCtx.SidecarManager != nil {
-		// Override VectorSidecarProvider's ConfigMap name to match our ConfigMap
-		if provider, ok := buildCtx.SidecarManager.GetProvider("vector"); ok {
-			if vp, ok := provider.(*sidecar.VectorSidecarProvider); ok {
-				vp.WithConfigMapName(buildCtx.ResourceName)
-			}
-		}
-		// Set MainContainerName explicitly
-		if cfg, ok := buildCtx.SidecarManager.GetConfig("vector"); ok {
-			cfg.MainContainerName = "zookeeper"
-		}
-		// Set product image (GenericReconciler skips this for non-BaseRoleGroupHandler)
-		if err := buildCtx.SidecarManager.SetProductImage(image, corev1.PullIfNotPresent); err != nil {
-			return nil, fmt.Errorf("failed to set product image on sidecars: %w", err)
-		}
-		if err := buildCtx.SidecarManager.InjectAll(&sts.Spec.Template.Spec); err != nil {
-			return nil, fmt.Errorf("failed to inject sidecars: %w", err)
-		}
-		// Bridge log volume: mount ZK's log volume into Vector so it can read ZK logs
-		for i := range sts.Spec.Template.Spec.Containers {
-			if sts.Spec.Template.Spec.Containers[i].Name == "vector" {
-				sts.Spec.Template.Spec.Containers[i].VolumeMounts = append(
-					sts.Spec.Template.Spec.Containers[i].VolumeMounts,
-					corev1.VolumeMount{
-						Name:      zkv1alpha1.LogDirName,
-						MountPath: constant.KubedoopLogDir,
-						ReadOnly:  true,
-					},
-				)
-				break
-			}
+	return res, nil
+}
+
+// registerServerContainers registers the myid init container and configures the Vector
+// sidecar on the SidecarManager so that base.BuildResources() injects them.
+func (h *ZkRoleGroupHandler) registerServerContainers(buildCtx *reconciler.RoleGroupBuildContext, image string) error {
+	mgr := buildCtx.SidecarManager // always non-nil (GenericReconciler guarantees it)
+
+	// myid init container — a one-shot init (nil RestartPolicy), injected through the manager.
+	mgr.Register(
+		sidecar.NewStaticContainerProvider(h.buildPrepareContainer(image)),
+		&sidecar.SidecarConfig{Enabled: true},
+	)
+
+	// Point the Vector sidecar at our ConfigMap. (GenericReconciler does not call
+	// SetProductImage for embedding handlers, so do it here.)
+	if provider, ok := mgr.GetProvider("vector"); ok {
+		if vp, ok := provider.(*sidecar.VectorSidecarProvider); ok {
+			vp.WithConfigMapName(buildCtx.ResourceName)
 		}
 	}
-
-	return &reconciler.RoleGroupResources{
-		ConfigMap:           configMap,
-		HeadlessService:     headlessSvc,
-		Service:             clientSvc,
-		StatefulSet:         sts,
-		PodDisruptionBudget: pdb,
-		MetricsService:      metricsSvc,
-	}, nil
+	if err := mgr.SetProductImage(image, corev1.PullIfNotPresent); err != nil {
+		return fmt.Errorf("failed to set product image on sidecars: %w", err)
+	}
+	return nil
 }
 
 // buildSecretProvisioner creates a SecretProvisioner with all CSI secret volumes
@@ -140,7 +166,6 @@ func (h *ZkRoleGroupHandler) buildSecretProvisioner(zkSecurity *security.Zookeep
 	provisioner := opgosecurity.NewSecretProvisioner()
 
 	// Server TLS: always register when TLS is enabled.
-	// If serverSecretClass is not explicitly set, fall back to the default secret class.
 	if zkSecurity.TLSEnabled() {
 		serverClass := zkSecurity.ServerSecretClass()
 		if serverClass == "" {
@@ -154,7 +179,7 @@ func (h *ZkRoleGroupHandler) buildSecretProvisioner(zkSecurity *security.Zookeep
 		).WithPassword(zkSecurity.SSLStorePassword()))
 	}
 
-	// Client TLS: needed if auth TLS class provides a client cert secret class
+	// Client TLS: needed if auth TLS class provides a client cert secret class.
 	if clientSecretClass := zkSecurity.ClientTLSSecretClass(); clientSecretClass != "" {
 		provisioner.Register(opgosecurity.TLS(
 			security.ClientTlsVolumeName,
@@ -162,7 +187,7 @@ func (h *ZkRoleGroupHandler) buildSecretProvisioner(zkSecurity *security.Zookeep
 		).WithPassword(zkSecurity.SSLStorePassword()))
 	}
 
-	// Quorum TLS: needed if quorumSecretClass is set
+	// Quorum TLS: needed if quorumSecretClass is set.
 	if quorumClass := zkSecurity.QuorumSecretClass(); quorumClass != "" {
 		provisioner.Register(opgosecurity.TLS(
 			security.QuorumTlsVolumeName,
@@ -171,28 +196,6 @@ func (h *ZkRoleGroupHandler) buildSecretProvisioner(zkSecurity *security.Zookeep
 	}
 
 	return provisioner
-}
-
-// buildPDB creates a PodDisruptionBudget for the role group.
-func (h *ZkRoleGroupHandler) buildPDB(
-	buildCtx *reconciler.RoleGroupBuildContext,
-	labels map[string]string,
-) *policyv1.PodDisruptionBudget {
-	pdbBuilder := builder.NewPDBBuilder(buildCtx.ResourceName, buildCtx.ClusterNamespace).
-		WithLabels(labels).
-		WithSelector(labels)
-
-	// Apply PDB spec from role config if available (PDB is a role-level setting)
-	if buildCtx.RoleSpec != nil && buildCtx.RoleSpec.RoleConfig != nil &&
-		buildCtx.RoleSpec.RoleConfig.PodDisruptionBudget != nil {
-		pdbBuilder.WithSpec(buildCtx.RoleSpec.RoleConfig.PodDisruptionBudget)
-	}
-
-	if !pdbBuilder.IsEnabled() {
-		return nil
-	}
-
-	return pdbBuilder.Build()
 }
 
 // resolveImage constructs the container image string from the CR spec.
@@ -218,15 +221,4 @@ func (h *ZkRoleGroupHandler) resolveImage(cr *zkv1alpha1.ZookeeperCluster) strin
 			repo, zkv1alpha1.DefaultProductName, productVersion, img.KubedoopVersion)
 	}
 	return fmt.Sprintf("%s/%s:%s", repo, zkv1alpha1.DefaultProductName, productVersion)
-}
-
-// buildLabels creates labels for the role group resources.
-func (h *ZkRoleGroupHandler) buildLabels(buildCtx *reconciler.RoleGroupBuildContext) map[string]string {
-	labels := make(map[string]string)
-	for k, v := range buildCtx.ClusterLabels {
-		labels[k] = v
-	}
-	labels["app.kubernetes.io/component"] = buildCtx.RoleGroupName
-	labels["zookeeper.kubedoop.dev/role"] = buildCtx.RoleName
-	return labels
 }

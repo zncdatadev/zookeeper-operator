@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"context"
 	"fmt"
 	"path"
 	"strings"
@@ -11,179 +10,134 @@ import (
 	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	opgosecurity "github.com/zncdatadev/operator-go/pkg/security"
+	"github.com/zncdatadev/operator-go/pkg/sidecar"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/constant"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-// buildStatefulSet creates the StatefulSet for a server role group.
-func (h *ZkRoleGroupHandler) buildStatefulSet(
-	ctx context.Context,
-	k8sClient client.Client,
-	cr *zkv1alpha1.ZookeeperCluster,
-	buildCtx *reconciler.RoleGroupBuildContext,
-	labels map[string]string,
-	zkSecurity *security.ZookeeperSecurity,
-	secretProvisioner *opgosecurity.SecretProvisioner,
-	image string,
-	replicas int32,
-) (*appsv1.StatefulSet, error) {
-	// Get merged config for resources, env vars, etc.
-	roleGroupConfig := buildCtx.RoleGroupSpec.GetConfig()
+// defaultStorageCapacity is the fallback data PVC size when resources.storage is not
+// specified. It mirrors the CRD default (StorageResource.Capacity) so a minimal
+// ZookeeperCluster (no resources block) still gets persistent storage.
+const defaultStorageCapacity = "10Gi"
 
-	sts := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      buildCtx.ResourceName,
-			Namespace: buildCtx.ClusterNamespace,
-			Labels:    labels,
-		},
-		Spec: appsv1.StatefulSetSpec{
-			Replicas:            &replicas,
-			ServiceName:         buildCtx.ResourceName,
-			PodManagementPolicy: appsv1.ParallelPodManagement,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
-				},
-				Spec: corev1.PodSpec{
-					ServiceAccountName: zkv1alpha1.DefaultProductName,
-					SecurityContext: &corev1.PodSecurityContext{
-						RunAsUser:  int64Ptr(1001),
-						RunAsGroup: int64Ptr(0),
-						FSGroup:    int64Ptr(1001),
-					},
-					EnableServiceLinks: boolPtr(false),
-					InitContainers:     h.buildInitContainers(buildCtx, image),
-					Containers:         h.buildContainers(buildCtx, image, zkSecurity, roleGroupConfig),
-					Volumes:            h.buildVolumes(buildCtx),
-				},
-			},
-		},
+// ensureStorageDefault makes sure the merged role group config carries a storage spec, so
+// the framework's StatefulSetBuilder.WithStorage builds the data PVC even when the user
+// omits resources.storage. Without this the "data" volume mount has no backing PVC and the
+// StatefulSet is rejected.
+func (h *ZkRoleGroupHandler) ensureStorageDefault(buildCtx *reconciler.RoleGroupBuildContext) {
+	cfg := buildCtx.RoleGroupSpec.Config
+	if cfg == nil {
+		cfg = &commonsv1alpha1.RoleGroupConfigSpec{}
+		buildCtx.RoleGroupSpec.Config = cfg
 	}
-
-	// Data volume claim template
-	if roleGroupConfig != nil && roleGroupConfig.Resources != nil && roleGroupConfig.Resources.Storage != nil {
-		sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{
-			{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: zkv1alpha1.DataDirName,
-				},
-				Spec: corev1.PersistentVolumeClaimSpec{
-					AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-					VolumeMode:  volumeModePtr(corev1.PersistentVolumeFilesystem),
-					Resources: corev1.VolumeResourceRequirements{
-						Requests: corev1.ResourceList{
-							corev1.ResourceStorage: roleGroupConfig.Resources.Storage.Capacity,
-						},
-					},
-				},
-			},
-		}
+	if cfg.Resources == nil {
+		cfg.Resources = &commonsv1alpha1.ResourcesSpec{}
 	}
-
-	// TLS: add CSI secret volumes and volume mounts
-	sts.Spec.Template.Spec.Volumes = append(sts.Spec.Template.Spec.Volumes, secretProvisioner.Volumes()...)
-	found := false
-	for i := range sts.Spec.Template.Spec.Containers {
-		if sts.Spec.Template.Spec.Containers[i].Name == "zookeeper" {
-			sts.Spec.Template.Spec.Containers[i].VolumeMounts = append(
-				sts.Spec.Template.Spec.Containers[i].VolumeMounts,
-				secretProvisioner.VolumeMounts()...)
-			found = true
-			break
-		}
+	switch {
+	case cfg.Resources.Storage == nil:
+		cfg.Resources.Storage = &commonsv1alpha1.StorageResource{Capacity: resource.MustParse(defaultStorageCapacity)}
+	case cfg.Resources.Storage.Capacity.IsZero():
+		cfg.Resources.Storage.Capacity = resource.MustParse(defaultStorageCapacity)
 	}
-	if !found {
-		return nil, fmt.Errorf("container 'zookeeper' not found in StatefulSet spec")
-	}
-
-	return sts, nil
 }
 
-// buildContainers creates the main Zookeeper container.
-func (h *ZkRoleGroupHandler) buildContainers(
+// customizeStatefulSet applies Zookeeper specifics to the StatefulSet built by the base
+// handler: pod identity/security, the start command and exec probes, the config/log
+// volumes, and the TLS CSI volumes. The data PVC, ports, resources and injected
+// sidecars/init containers are already in place from the framework builder.
+func (h *ZkRoleGroupHandler) customizeStatefulSet(
+	sts *appsv1.StatefulSet,
 	buildCtx *reconciler.RoleGroupBuildContext,
-	image string,
 	zkSecurity *security.ZookeeperSecurity,
-	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
-) []corev1.Container {
-	mainContainer := corev1.Container{
-		Name:            "zookeeper",
+	secretProvisioner *opgosecurity.SecretProvisioner,
+) error {
+	roleGroupConfig := buildCtx.RoleGroupSpec.GetConfig()
+	podSpec := &sts.Spec.Template.Spec
+
+	// Pod-level settings the framework builder does not set.
+	podSpec.ServiceAccountName = zkv1alpha1.DefaultProductName
+	podSpec.SecurityContext = &corev1.PodSecurityContext{
+		RunAsUser:  int64Ptr(1001),
+		RunAsGroup: int64Ptr(0),
+		FSGroup:    int64Ptr(1001),
+	}
+	podSpec.EnableServiceLinks = boolPtr(false)
+
+	// The base handler may add a generic "config" ConfigMap volume mounted at /etc/config.
+	// Drop it; Zookeeper mounts its own config/log/log-config volumes at Kubedoop paths
+	// (the main container's volume mounts are replaced wholesale below).
+	removeNamedVolume(podSpec, zkv1alpha1.ConfigDirName)
+	podSpec.Volumes = append(podSpec.Volumes, h.buildVolumes(buildCtx)...)
+	podSpec.Volumes = append(podSpec.Volumes, secretProvisioner.Volumes()...)
+
+	if len(podSpec.Containers) == 0 {
+		return fmt.Errorf("base handler produced no main container")
+	}
+	main := &podSpec.Containers[0]
+	// Name the main container after the role ("server"), consistent with the framework
+	// component label and the e2e expectations.
+	main.Name = buildCtx.RoleName
+	main.Command = []string{"/bin/bash", "-x", "-euo", "pipefail", "-c"}
+	main.Args = h.getMainContainerArgs(zkSecurity)
+	// User envOverrides (already on the container from the builder) win over our defaults.
+	main.Env = append(h.getEnvVars(roleGroupConfig, zkSecurity), main.Env...)
+	main.ReadinessProbe = h.getReadinessProbe(zkSecurity)
+	main.LivenessProbe = h.getLivenessProbe(zkSecurity)
+	if main.SecurityContext == nil {
+		main.SecurityContext = &corev1.SecurityContext{}
+	}
+	main.VolumeMounts = h.getVolumeMounts()
+	main.VolumeMounts = append(main.VolumeMounts, secretProvisioner.VolumeMounts()...)
+
+	// Bridge the ZK log volume into the Vector native sidecar (an init container with
+	// restartPolicy: Always) so it can read ZK logs.
+	if vectorContainer := sidecar.FindInitContainer(podSpec, "vector"); vectorContainer != nil {
+		vectorContainer.VolumeMounts = append(vectorContainer.VolumeMounts, corev1.VolumeMount{
+			Name:      zkv1alpha1.LogDirName,
+			MountPath: constant.KubedoopLogDir,
+			ReadOnly:  true,
+		})
+	}
+	return nil
+}
+
+// removeNamedVolume removes a pod volume by name (used to drop the base handler's generic
+// config volume).
+func removeNamedVolume(podSpec *corev1.PodSpec, name string) {
+	kept := podSpec.Volumes[:0]
+	for _, v := range podSpec.Volumes {
+		if v.Name != name {
+			kept = append(kept, v)
+		}
+	}
+	podSpec.Volumes = kept
+}
+
+// buildPrepareContainer builds the myid init container. It is one-shot (nil RestartPolicy)
+// and registered through the SidecarManager (see registerServerContainers).
+func (h *ZkRoleGroupHandler) buildPrepareContainer(image string) corev1.Container {
+	return corev1.Container{
+		Name:            "prepare",
 		Image:           image,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Command:         []string{"/bin/bash", "-x", "-euo", "pipefail", "-c"},
-		Args:            h.getMainContainerArgs(zkSecurity),
-		Env:             h.getEnvVars(roleGroupConfig, zkSecurity),
-		Ports:           h.getContainerPorts(zkSecurity),
-		VolumeMounts:    h.getVolumeMounts(),
-		ReadinessProbe:  h.getReadinessProbe(zkSecurity),
-		LivenessProbe:   h.getLivenessProbe(zkSecurity),
-		SecurityContext: &corev1.SecurityContext{},
-	}
-
-	// Set resources if configured
-	if roleGroupConfig != nil && roleGroupConfig.Resources != nil {
-		req := &corev1.ResourceRequirements{
-			Requests: make(corev1.ResourceList),
-			Limits:   make(corev1.ResourceList),
-		}
-		if roleGroupConfig.Resources.CPU != nil {
-			if !roleGroupConfig.Resources.CPU.Min.IsZero() {
-				req.Requests[corev1.ResourceCPU] = roleGroupConfig.Resources.CPU.Min
-			}
-			if !roleGroupConfig.Resources.CPU.Max.IsZero() {
-				req.Limits[corev1.ResourceCPU] = roleGroupConfig.Resources.CPU.Max
-			}
-		}
-		if roleGroupConfig.Resources.Memory != nil {
-			if !roleGroupConfig.Resources.Memory.Limit.IsZero() {
-				req.Limits[corev1.ResourceMemory] = roleGroupConfig.Resources.Memory.Limit
-				req.Requests[corev1.ResourceMemory] = roleGroupConfig.Resources.Memory.Limit
-			}
-		}
-		mainContainer.Resources = *req
-	}
-
-	return []corev1.Container{mainContainer}
-}
-
-// buildInitContainers creates the init container for myid generation.
-func (h *ZkRoleGroupHandler) buildInitContainers(
-	buildCtx *reconciler.RoleGroupBuildContext,
-	image string,
-) []corev1.Container {
-	return []corev1.Container{
-		{
-			Name:            "prepare",
-			Image:           image,
-			ImagePullPolicy: corev1.PullIfNotPresent,
-			Command:         []string{"/bin/bash", "-x", "-euo", "pipefail", "-c"},
-			Args: []string{
-				"expr $MYID_OFFSET + $(echo $POD_NAME | sed 's/.*-//') > /kubedoop/data/myid",
-			},
-			VolumeMounts: []corev1.VolumeMount{
-				{
-					Name:      zkv1alpha1.DataDirName,
-					MountPath: constant.KubedoopDataDir,
-				},
-			},
-			Env: []corev1.EnvVar{
-				{Name: "MYID_OFFSET", Value: "1"},
-				{
-					Name: "POD_NAME",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "metadata.name",
-						},
-					},
+		Args: []string{
+			"expr $MYID_OFFSET + $(echo $POD_NAME | sed 's/.*-//') > /kubedoop/data/myid",
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			{Name: zkv1alpha1.DataDirName, MountPath: constant.KubedoopDataDir},
+		},
+		Env: []corev1.EnvVar{
+			{Name: "MYID_OFFSET", Value: "1"},
+			{
+				Name: "POD_NAME",
+				ValueFrom: &corev1.EnvVarSource{
+					FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"},
 				},
 			},
 		},
@@ -206,8 +160,7 @@ cp -RL ${CONFIG_DIR_MOUNT}* ${CONFIG_DIR}`, constant.KubedoopLogDirMount, consta
 		`echo "Starting Zookeeper"`,
 		fmt.Sprintf("bin/zkServer.sh start-foreground %s", zkConfigPath),
 	}
-	script := strings.Join(args, "\n")
-	return []string{script}
+	return []string{strings.Join(args, "\n")}
 }
 
 // getEnvVars returns environment variables for the main container.
@@ -220,7 +173,7 @@ func (h *ZkRoleGroupHandler) getEnvVars(
 		{Name: "SERVER_JVMFLAGS", Value: util.JvmJmxOpts(zkv1alpha1.MetricsPort)},
 	}
 
-	// Heap limit from memory resources
+	// Heap limit from memory resources.
 	if roleGroupConfig != nil && roleGroupConfig.Resources != nil && roleGroupConfig.Resources.Memory != nil {
 		memoryLimit := roleGroupConfig.Resources.Memory.Limit
 		heapLimit := float64(memoryLimit.Value()/(1024*1024)) * 0.8
@@ -235,13 +188,22 @@ func (h *ZkRoleGroupHandler) getEnvVars(
 	return envs
 }
 
-// getContainerPorts returns container ports.
-func (h *ZkRoleGroupHandler) getContainerPorts(zkSecurity *security.ZookeeperSecurity) []corev1.ContainerPort {
+// containerPorts returns the main container ports.
+func (h *ZkRoleGroupHandler) containerPorts(zkSecurity *security.ZookeeperSecurity) []corev1.ContainerPort {
 	return []corev1.ContainerPort{
 		{Name: zkv1alpha1.ClientPortName, ContainerPort: int32(zkSecurity.ClientPort())},
 		{Name: zkv1alpha1.LeaderPortName, ContainerPort: zkv1alpha1.LeaderPort},
 		{Name: zkv1alpha1.ElectionPortName, ContainerPort: zkv1alpha1.ElectionPort},
 		{Name: zkv1alpha1.MetricsPortName, ContainerPort: zkv1alpha1.MetricsPort},
+	}
+}
+
+// servicePorts returns the ports exposed by the headless and client services.
+func (h *ZkRoleGroupHandler) servicePorts(zkSecurity *security.ZookeeperSecurity) []corev1.ServicePort {
+	clientPort := int32(zkSecurity.ClientPort())
+	return []corev1.ServicePort{
+		{Name: zkv1alpha1.ClientPortName, Port: clientPort, TargetPort: intstr.FromInt(int(clientPort))},
+		{Name: zkv1alpha1.MetricsPortName, Port: zkv1alpha1.MetricsPort, TargetPort: intstr.FromInt(int(zkv1alpha1.MetricsPort))},
 	}
 }
 
@@ -255,7 +217,8 @@ func (h *ZkRoleGroupHandler) getVolumeMounts() []corev1.VolumeMount {
 	}
 }
 
-// buildVolumes returns volumes for the pod.
+// buildVolumes returns the config/log/log-config volumes for the pod (the data volume is a
+// PVC template added by the framework builder).
 func (h *ZkRoleGroupHandler) buildVolumes(
 	buildCtx *reconciler.RoleGroupBuildContext,
 ) []corev1.Volume {
@@ -264,9 +227,7 @@ func (h *ZkRoleGroupHandler) buildVolumes(
 			Name: zkv1alpha1.ConfigDirName,
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: buildCtx.ResourceName,
-					},
+					LocalObjectReference: corev1.LocalObjectReference{Name: buildCtx.ResourceName},
 				},
 			},
 		},
@@ -274,9 +235,7 @@ func (h *ZkRoleGroupHandler) buildVolumes(
 			Name: zkv1alpha1.LogConfigDirName,
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: buildCtx.ResourceName,
-					},
+					LocalObjectReference: corev1.LocalObjectReference{Name: buildCtx.ResourceName},
 				},
 			},
 		},
@@ -334,6 +293,5 @@ func (h *ZkRoleGroupHandler) getReadinessProbe(zkSecurity *security.ZookeeperSec
 }
 
 // Helper functions for pointer types
-func int64Ptr(v int64) *int64                                                  { return &v }
-func boolPtr(v bool) *bool                                                     { return &v }
-func volumeModePtr(v corev1.PersistentVolumeMode) *corev1.PersistentVolumeMode { return &v }
+func int64Ptr(v int64) *int64 { return &v }
+func boolPtr(v bool) *bool    { return &v }
