@@ -2,14 +2,12 @@ module github.com/zncdatadev/zookeeper-operator
 
 go 1.25.8
 
-replace github.com/zncdatadev/operator-go => ../operator-go
-
 require (
 	github.com/go-logr/logr v1.4.3
 	github.com/onsi/ginkgo/v2 v2.28.3
 	github.com/onsi/gomega v1.40.0
 	github.com/samuel/go-zookeeper v0.0.0-20201211165307-7117e9ea2414
-	github.com/zncdatadev/operator-go v0.0.0-00010101000000-000000000000
+	github.com/zncdatadev/operator-go v0.12.7-0.20260623053059-70aacdb72243
 	k8s.io/api v0.35.4
 	k8s.io/apimachinery v0.35.4
 	k8s.io/client-go v0.35.4
