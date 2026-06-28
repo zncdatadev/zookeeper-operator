@@ -22,8 +22,8 @@ var _ = Describe("ServerStatefulSet", func() {
 			zkSecurity := newTestZookeeperSecurity()
 			probe := h.getLivenessProbe(zkSecurity)
 			Expect(probe).NotTo(BeNil())
-			Expect(probe.ProbeHandler.Exec).NotTo(BeNil())
-			cmd := probe.ProbeHandler.Exec.Command
+			Expect(probe.Exec).NotTo(BeNil())
+			cmd := probe.Exec.Command
 			Expect(cmd).To(HaveLen(3))
 			Expect(cmd[0]).To(Equal("bash"))
 			Expect(cmd[1]).To(Equal("-c"))

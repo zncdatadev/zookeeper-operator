@@ -67,7 +67,7 @@ func (z *ZNodeReconciler) reconcile(ctx context.Context, cluster *zkv1alpha1.Zoo
 
 	// Create external-unstable discovery ConfigMap if needed
 	if cluster.Spec.ClusterConfig != nil &&
-		zkv1alpha1.ListenerClass(cluster.Spec.ClusterConfig.ListenerClass) == zkv1alpha1.ExternalUnstable {
+		cluster.Spec.ClusterConfig.ListenerClass == zkv1alpha1.ExternalUnstable {
 		if err := z.reconcileDiscoveryConfigMap(ctx, cluster, znodeInfo, zkv1alpha1.ExternalUnstable); err != nil {
 			return ctrl.Result{}, "", err
 		}

@@ -84,7 +84,7 @@ var _ = Describe("ServerLogging", func() {
 				},
 			}
 			buildCtx := &reconciler.RoleGroupBuildContext{
-				SidecarManager:  sidecar.NewSidecarManager(),
+				SidecarManager:   sidecar.NewSidecarManager(),
 				ClusterNamespace: namespace,
 				ClusterName:      "test-cluster",
 				RoleName:         "server",

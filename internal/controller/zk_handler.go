@@ -36,6 +36,13 @@ var _ reconciler.RoleGroupHandler[*zkv1alpha1.ZookeeperCluster] = &ZkRoleGroupHa
 // these selectors never match another product's pods.
 const LabelDomain = "zookeeper.kubedoop.dev"
 
+// serverRoleName is the single ZooKeeper role name, used both as the role key and as the
+// component label value.
+const serverRoleName = "server"
+
+// bashShell is the shell used for exec probes and the container entrypoint script.
+const bashShell = "bash"
+
 // NewZkRoleGroupHandler creates a handler with the framework-level options that are constant
 // across reconciliations. Per-CR options (image, ports) are set in BuildResources.
 func NewZkRoleGroupHandler(scheme *runtime.Scheme) *ZkRoleGroupHandler {
@@ -70,7 +77,7 @@ func (h *ZkRoleGroupHandler) BuildResources(
 	cr *zkv1alpha1.ZookeeperCluster,
 	buildCtx *reconciler.RoleGroupBuildContext,
 ) (*reconciler.RoleGroupResources, error) {
-	if buildCtx.RoleName != "server" {
+	if buildCtx.RoleName != serverRoleName {
 		return nil, fmt.Errorf("unsupported role: %s", buildCtx.RoleName)
 	}
 
@@ -85,8 +92,8 @@ func (h *ZkRoleGroupHandler) BuildResources(
 
 	// Configure the per-CR base inputs.
 	h.Image = image
-	h.SetRoleContainerPorts("server", h.containerPorts(zkSecurity))
-	h.SetRoleServicePorts("server", h.servicePorts(zkSecurity))
+	h.SetRoleContainerPorts(serverRoleName, h.containerPorts(zkSecurity))
+	h.SetRoleServicePorts(serverRoleName, h.servicePorts(zkSecurity))
 	// Ensure the data PVC is built even when the user omits resources.storage.
 	h.ensureStorageDefault(buildCtx)
 

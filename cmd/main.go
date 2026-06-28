@@ -168,15 +168,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	zkReconciler, err := reconciler.NewGenericReconciler(&reconciler.GenericReconcilerConfig[*zookeeperv1alpha1.ZookeeperCluster]{
-		Client:             mgr.GetClient(),
-		Scheme:             mgr.GetScheme(),
-		Recorder:           mgr.GetEventRecorderFor("zookeeper-cluster-controller"),
-		RoleGroupHandler:   zkHandler,
-		ServiceHealthCheck: controller.NewZkServiceHealthCheck(podExec),
-		ServiceAccountName: zookeeperv1alpha1.DefaultProductName,
-		Prototype:          &zookeeperv1alpha1.ZookeeperCluster{},
-	})
+	zkReconciler, err := reconciler.NewGenericReconciler(
+		&reconciler.GenericReconcilerConfig[*zookeeperv1alpha1.ZookeeperCluster]{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			// operator-go's Recorder field is the (deprecated) record.EventRecorder; the
+			// replacement GetEventRecorder returns the incompatible events.EventRecorder.
+			Recorder:           mgr.GetEventRecorderFor("zookeeper-cluster-controller"), //nolint:staticcheck
+			RoleGroupHandler:   zkHandler,
+			ServiceHealthCheck: controller.NewZkServiceHealthCheck(podExec),
+			ServiceAccountName: zookeeperv1alpha1.DefaultProductName,
+			Prototype:          &zookeeperv1alpha1.ZookeeperCluster{},
+		})
 	if err != nil {
 		setupLog.Error(err, "unable to create GenericReconciler", "controller", "ZookeeperCluster")
 		os.Exit(1)

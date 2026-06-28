@@ -44,8 +44,8 @@ var _ = Describe("ZkServiceHealthCheck", func() {
 	Describe("CheckHealthy", func() {
 		Context("standalone mode (1 replica)", func() {
 			It("should return healthy when node reports standalone", func() {
-				cr := makeZookeeperCluster("test-zk", "default", 1)
-				pod := makePod("test-zk-server-default-0", "default", "test-zk")
+				cr := makeZookeeperCluster(1)
+				pod := makePod("test-zk-server-default-0")
 
 				k8sClient := fake.NewClientBuilder().
 					WithScheme(scheme).
@@ -65,8 +65,8 @@ var _ = Describe("ZkServiceHealthCheck", func() {
 			})
 
 			It("should return unhealthy when node is non-responsive", func() {
-				cr := makeZookeeperCluster("test-zk", "default", 1)
-				pod := makePod("test-zk-server-default-0", "default", "test-zk")
+				cr := makeZookeeperCluster(1)
+				pod := makePod("test-zk-server-default-0")
 
 				k8sClient := fake.NewClientBuilder().
 					WithScheme(scheme).
@@ -88,11 +88,11 @@ var _ = Describe("ZkServiceHealthCheck", func() {
 
 		Context("ensemble mode (3 replicas)", func() {
 			It("should return healthy with 1 leader and 2 followers", func() {
-				cr := makeZookeeperCluster("test-zk", "default", 3)
+				cr := makeZookeeperCluster(3)
 				objs := []runtime.Object{
-					makePod("test-zk-server-default-0", "default", "test-zk"),
-					makePod("test-zk-server-default-1", "default", "test-zk"),
-					makePod("test-zk-server-default-2", "default", "test-zk"),
+					makePod("test-zk-server-default-0"),
+					makePod("test-zk-server-default-1"),
+					makePod("test-zk-server-default-2"),
 					cr,
 				}
 
@@ -116,11 +116,11 @@ var _ = Describe("ZkServiceHealthCheck", func() {
 			})
 
 			It("should return unhealthy when quorum lost (majority down)", func() {
-				cr := makeZookeeperCluster("test-zk", "default", 3)
+				cr := makeZookeeperCluster(3)
 				objs := []runtime.Object{
-					makePod("test-zk-server-default-0", "default", "test-zk"),
-					makePod("test-zk-server-default-1", "default", "test-zk"),
-					makePod("test-zk-server-default-2", "default", "test-zk"),
+					makePod("test-zk-server-default-0"),
+					makePod("test-zk-server-default-1"),
+					makePod("test-zk-server-default-2"),
 					cr,
 				}
 
@@ -146,11 +146,11 @@ var _ = Describe("ZkServiceHealthCheck", func() {
 			})
 
 			It("should return unhealthy when no leader (split brain)", func() {
-				cr := makeZookeeperCluster("test-zk", "default", 3)
+				cr := makeZookeeperCluster(3)
 				objs := []runtime.Object{
-					makePod("test-zk-server-default-0", "default", "test-zk"),
-					makePod("test-zk-server-default-1", "default", "test-zk"),
-					makePod("test-zk-server-default-2", "default", "test-zk"),
+					makePod("test-zk-server-default-0"),
+					makePod("test-zk-server-default-1"),
+					makePod("test-zk-server-default-2"),
 					cr,
 				}
 
@@ -187,7 +187,7 @@ var _ = Describe("ZkServiceHealthCheck", func() {
 			})
 
 			It("should return unhealthy when no pods found", func() {
-				cr := makeZookeeperCluster("test-zk", "default", 3)
+				cr := makeZookeeperCluster(3)
 
 				k8sClient := fake.NewClientBuilder().
 					WithScheme(scheme).
@@ -226,11 +226,11 @@ var _ = Describe("ZkServiceHealthCheck", func() {
 	})
 })
 
-func makeZookeeperCluster(name, namespace string, replicas int32) *zkv1alpha1.ZookeeperCluster {
+func makeZookeeperCluster(replicas int32) *zkv1alpha1.ZookeeperCluster {
 	return &zkv1alpha1.ZookeeperCluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name:      "test-zk",
+			Namespace: "default",
 		},
 		Spec: zkv1alpha1.ZookeeperClusterSpec{
 			ClusterConfig: &zkv1alpha1.ClusterConfigSpec{},
@@ -245,13 +245,13 @@ func makeZookeeperCluster(name, namespace string, replicas int32) *zkv1alpha1.Zo
 	}
 }
 
-func makePod(name, namespace, clusterName string) *corev1.Pod {
+func makePod(name string) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: namespace,
+			Namespace: "default",
 			Labels: map[string]string{
-				"zookeeper.kubedoop.dev/cluster": clusterName,
+				"zookeeper.kubedoop.dev/cluster": "test-zk",
 				"zookeeper.kubedoop.dev/role":    "server",
 			},
 		},

@@ -82,12 +82,12 @@ func (e *ClusterServiceExtension) ensureClusterService(ctx context.Context, c cl
 	// never selects another product's "server" pods in the same namespace.
 	selector := map[string]string{
 		reconciler.ClusterLabelKey(LabelDomain): cr.Name,
-		reconciler.RoleLabelKey(LabelDomain):    "server",
+		reconciler.RoleLabelKey(LabelDomain):    serverRoleName,
 	}
 	labels := map[string]string{
 		"app.kubernetes.io/instance":  cr.Name,
 		"app.kubernetes.io/name":      zkv1alpha1.DefaultProductName,
-		"app.kubernetes.io/component": "server",
+		"app.kubernetes.io/component": serverRoleName,
 	}
 
 	svc := &corev1.Service{

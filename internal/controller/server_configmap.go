@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"maps"
 
-	"github.com/zncdatadev/operator-go/pkg/config"
+	"github.com/zncdatadev/operator-go/pkg/productlogging"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	opgosecurity "github.com/zncdatadev/operator-go/pkg/security"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
@@ -37,12 +37,20 @@ func (h *ZkRoleGroupHandler) buildConfigMap(
 	// 2. Generate security.properties
 	data[zkv1alpha1.SecurityFileName] = h.generateSecurityProps(buildCtx)
 
-	// 3. Generate logback.xml
-	logbackXML, err := generateLogbackXml()
+	// 3. Generate logback.xml from the merged CRD logging spec via the framework's logging
+	// pipeline (deep-merge -> convert -> render). Only the ZooKeeper-specific bits stay here:
+	// the encoder pattern (myid MDC) and the file appender name that feeds the Vector sidecar
+	// (which globs <logDir>/*.stdout.log).
+	logbackFile, logbackXML, err := reconciler.RenderContainerLogging(buildCtx, productlogging.ContainerLogging{
+		Container:  common.ZkServerContainerName,
+		Framework:  productlogging.LoggingFrameworkLogback,
+		Pattern:    "%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n",
+		OutputFile: "zookeeper.stdout.log",
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate logback config: %w", err)
 	}
-	data["logback.xml"] = logbackXML
+	data[logbackFile] = logbackXML
 
 	// 4. Generate vector.yaml if logging is enabled
 	vectorData, err := h.buildVectorConfigMapData(ctx, k8sClient, cr, buildCtx)
@@ -147,19 +155,5 @@ func (h *ZkRoleGroupHandler) generateSecurityProps(
 	return util.ToProperties(map[string]string{
 		"networkaddress.cache.ttl":          "5",
 		"networkaddress.cache.negative.ttl": "0",
-	})
-}
-
-// generateLogbackXml generates the logback.xml configuration using the framework's logback
-// generator.
-//
-// The FileOutputPath adds a bounded rolling FILE appender writing to
-// {KubedoopLogDir}/zookeeper.stdout.log (in addition to the console appender). The Vector
-// sidecar's `files_stdout` source globs {LogDir}/*.stdout.log, so this file is what makes
-// log aggregation actually collect ZooKeeper logs.
-func generateLogbackXml() (string, error) {
-	return config.GenerateLogbackWithOptions(nil, config.LogbackOptions{
-		Pattern:        "%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n",
-		FileOutputPath: constant.KubedoopLogDir + "/zookeeper.stdout.log",
 	})
 }

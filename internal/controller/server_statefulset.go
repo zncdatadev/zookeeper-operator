@@ -12,6 +12,7 @@ import (
 	opgosecurity "github.com/zncdatadev/operator-go/pkg/security"
 	"github.com/zncdatadev/operator-go/pkg/sidecar"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
+	"github.com/zncdatadev/zookeeper-operator/internal/common"
 	"github.com/zncdatadev/zookeeper-operator/internal/constant"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
 	appsv1 "k8s.io/api/apps/v1"
@@ -79,13 +80,14 @@ func (h *ZkRoleGroupHandler) customizeStatefulSet(
 		return fmt.Errorf("base handler produced no main container")
 	}
 	main := &podSpec.Containers[0]
-	// Name the main container after the role ("server"), consistent with the framework
-	// component label and the e2e expectations.
-	main.Name = buildCtx.RoleName
+	// Name the main container "zookeeper" (common.ZkServerContainerName) for backward
+	// compatibility with the pre-framework layout. The role name ("server") is still used
+	// for the component label, but the container name is intentionally decoupled from it.
+	main.Name = common.ZkServerContainerName
 	main.Command = []string{"/bin/bash", "-x", "-euo", "pipefail", "-c"}
-	main.Args = h.getMainContainerArgs(zkSecurity)
+	main.Args = h.getMainContainerArgs()
 	// User envOverrides (already on the container from the builder) win over our defaults.
-	main.Env = append(h.getEnvVars(roleGroupConfig, zkSecurity), main.Env...)
+	main.Env = append(h.getEnvVars(roleGroupConfig), main.Env...)
 	main.ReadinessProbe = h.getReadinessProbe(zkSecurity)
 	main.LivenessProbe = h.getLivenessProbe(zkSecurity)
 	if main.SecurityContext == nil {
@@ -145,7 +147,7 @@ func (h *ZkRoleGroupHandler) buildPrepareContainer(image string) corev1.Containe
 }
 
 // getMainContainerArgs returns the command arguments for the main container.
-func (h *ZkRoleGroupHandler) getMainContainerArgs(zkSecurity *security.ZookeeperSecurity) []string {
+func (h *ZkRoleGroupHandler) getMainContainerArgs() []string {
 	zkConfigPath := path.Join(constant.KubedoopConfigDir, "zoo.cfg")
 
 	args := []string{
@@ -158,7 +160,11 @@ cp -RL ${LOG_CONFIG_DIR_MOUNT}* ${CONFIG_DIR}
 cp -RL ${CONFIG_DIR_MOUNT}* ${CONFIG_DIR}`, constant.KubedoopLogDirMount, constant.KubedoopConfigDirMount, constant.KubedoopConfigDir),
 		`ls /kubedoop/ > /dev/null 2>&1 || true`,
 		`echo "Starting Zookeeper"`,
-		fmt.Sprintf("bin/zkServer.sh start-foreground %s", zkConfigPath),
+		// exec so the JVM replaces this shell and becomes the container's main process,
+		// receiving SIGTERM directly for graceful shutdown on pod termination. Vector
+		// shutdown ordering is handled by the framework's native sidecar (init container
+		// with restartPolicy: Always), so the old background+trap+wait dance is unnecessary.
+		fmt.Sprintf("exec bin/zkServer.sh start-foreground %s", zkConfigPath),
 	}
 	return []string{strings.Join(args, "\n")}
 }
@@ -166,7 +172,6 @@ cp -RL ${CONFIG_DIR_MOUNT}* ${CONFIG_DIR}`, constant.KubedoopLogDirMount, consta
 // getEnvVars returns environment variables for the main container.
 func (h *ZkRoleGroupHandler) getEnvVars(
 	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
-	zkSecurity *security.ZookeeperSecurity,
 ) []corev1.EnvVar {
 	envs := []corev1.EnvVar{
 		{Name: "MYID_OFFSET", Value: "1"},
@@ -259,7 +264,7 @@ func (h *ZkRoleGroupHandler) getLivenessProbe(zkSecurity *security.ZookeeperSecu
 		ProbeHandler: corev1.ProbeHandler{
 			Exec: &corev1.ExecAction{
 				Command: []string{
-					"bash",
+					bashShell,
 					"-c",
 					fmt.Sprintf("exec 3<>/dev/tcp/127.0.0.1/%d && echo ruok >&3 && grep 'imok' <&3", zkSecurity.ClientPort()),
 				},
@@ -279,7 +284,7 @@ func (h *ZkRoleGroupHandler) getReadinessProbe(zkSecurity *security.ZookeeperSec
 		ProbeHandler: corev1.ProbeHandler{
 			Exec: &corev1.ExecAction{
 				Command: []string{
-					"bash",
+					bashShell,
 					"-c",
 					fmt.Sprintf("exec 3<>/dev/tcp/127.0.0.1/%d && echo srvr >&3 && grep '^Mode: ' <&3", zkSecurity.ClientPort()),
 				},

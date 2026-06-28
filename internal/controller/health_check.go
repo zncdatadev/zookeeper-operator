@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/zncdatadev/operator-go/pkg/common"
+	opcommon "github.com/zncdatadev/operator-go/pkg/common"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
+	"github.com/zncdatadev/zookeeper-operator/internal/common"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,7 +49,7 @@ func (e *PodExec) Exec(ctx context.Context, namespace, podName string, command [
 		SubResource("exec").
 		VersionedParams(&corev1.PodExecOptions{
 			Command:   command,
-			Container: "server",
+			Container: common.ZkServerContainerName,
 			Stdin:     false,
 			Stdout:    true,
 			Stderr:    false,
@@ -73,7 +74,7 @@ func (e *PodExec) Exec(ctx context.Context, namespace, podName string, command [
 	return stdout.String(), nil
 }
 
-// ZkServiceHealthCheck implements common.ServiceHealthCheck for ZooKeeper ensemble health.
+// ZkServiceHealthCheck implements opcommon.ServiceHealthCheck for ZooKeeper ensemble health.
 type ZkServiceHealthCheck struct {
 	executer PodExecuter
 }
@@ -84,7 +85,7 @@ func NewZkServiceHealthCheck(executer PodExecuter) *ZkServiceHealthCheck {
 }
 
 // Compile-time interface check.
-var _ common.ServiceHealthCheck = &ZkServiceHealthCheck{}
+var _ opcommon.ServiceHealthCheck = &ZkServiceHealthCheck{}
 
 // CheckHealthy verifies ZooKeeper ensemble health by exec-ing into server pods
 // and checking quorum via the srvr command.
@@ -110,7 +111,7 @@ func (z *ZkServiceHealthCheck) CheckHealthy(
 	podList := &corev1.PodList{}
 	labelSelector := labels.SelectorFromSet(map[string]string{
 		reconciler.ClusterLabelKey(LabelDomain): name,
-		reconciler.RoleLabelKey(LabelDomain):    "server",
+		reconciler.RoleLabelKey(LabelDomain):    serverRoleName,
 	})
 	if err := k8sClient.List(ctx, podList, client.InNamespace(namespace), client.MatchingLabelsSelector{Selector: labelSelector}); err != nil {
 		return false, fmt.Errorf("failed to list pods: %w", err)
@@ -135,7 +136,7 @@ func (z *ZkServiceHealthCheck) CheckHealthy(
 			continue
 		}
 		cmd := []string{
-			"bash", "-c",
+			bashShell, "-c",
 			fmt.Sprintf("exec 3<>/dev/tcp/127.0.0.1/%d && echo srvr >&3 && grep '^Mode:' <&3", clientPort),
 		}
 		output, err := z.executer.Exec(ctx, namespace, pod.Name, cmd)

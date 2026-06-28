@@ -42,7 +42,7 @@ spec:
         podOverrides:   # pod spec overrides
           spec:
             containers:
-              - name: server
+              - name: zookeeper
                 resources:
                   requests:
                     cpu: 150m
