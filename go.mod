@@ -2,6 +2,10 @@ module github.com/zncdatadev/zookeeper-operator
 
 go 1.25.8
 
+// DO NOT REMOVE until the base-operator-go refactor is complete.
+// The framework refactor is still in progress and developed locally, so we build
+// against ../operator-go. Only drop this replace (and pin operator-go to a released
+// version) once the refactor lands upstream and is tagged.
 replace github.com/zncdatadev/operator-go => ../operator-go
 
 require (
