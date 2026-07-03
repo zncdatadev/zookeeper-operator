@@ -10,9 +10,7 @@ import (
 	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	opgosecurity "github.com/zncdatadev/operator-go/pkg/security"
-	"github.com/zncdatadev/operator-go/pkg/sidecar"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
-	"github.com/zncdatadev/zookeeper-operator/internal/common"
 	"github.com/zncdatadev/zookeeper-operator/internal/constant"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
 	appsv1 "k8s.io/api/apps/v1"
@@ -48,9 +46,11 @@ func (h *ZkRoleGroupHandler) ensureStorageDefault(buildCtx *reconciler.RoleGroup
 }
 
 // customizeStatefulSet applies Zookeeper specifics to the StatefulSet built by the base
-// handler: pod identity/security, the start command and exec probes, the config/log
-// volumes, and the TLS CSI volumes. The data PVC, ports, resources and injected
-// sidecars/init containers are already in place from the framework builder.
+// handler: the start command and exec probes, the config/log-config volumes, and the TLS CSI
+// volumes. Pod identity (ServiceAccount), the default pod/container SecurityContext, the data
+// PVC, the shared Vector log volume (mounted on the renamed "zookeeper" container), ports,
+// resources and injected sidecars/init containers are already in place from the framework
+// builder.
 func (h *ZkRoleGroupHandler) customizeStatefulSet(
 	sts *appsv1.StatefulSet,
 	buildCtx *reconciler.RoleGroupBuildContext,
@@ -60,56 +60,43 @@ func (h *ZkRoleGroupHandler) customizeStatefulSet(
 	roleGroupConfig := buildCtx.RoleGroupSpec.GetConfig()
 	podSpec := &sts.Spec.Template.Spec
 
-	// Pod-level settings the framework builder does not set.
-	podSpec.ServiceAccountName = zkv1alpha1.DefaultProductName
-	podSpec.SecurityContext = &corev1.PodSecurityContext{
-		RunAsUser:  int64Ptr(1001),
-		RunAsGroup: int64Ptr(0),
-		FSGroup:    int64Ptr(1001),
-	}
+	// Don't pollute the pod env with links to every service in the namespace.
 	podSpec.EnableServiceLinks = boolPtr(false)
 
-	// The base handler may add a generic "config" ConfigMap volume mounted at /etc/config.
-	// Drop it; Zookeeper mounts its own config/log/log-config volumes at Kubedoop paths
-	// (the main container's volume mounts are replaced wholesale below).
+	// The framework adds a generic "config" ConfigMap volume mounted at /etc/config whenever the
+	// merged config carries config files (user configOverrides feed buildConfigMap). ZooKeeper
+	// mounts the same ConfigMap at its own Kubedoop paths instead, so drop the framework's
+	// "config" volume (added below as zkv1alpha1.ConfigDirName, same name, different path).
 	removeNamedVolume(podSpec, zkv1alpha1.ConfigDirName)
+	// ZooKeeper's own config / log-config ConfigMap volumes plus the TLS CSI volumes. The data
+	// PVC (framework WithStorage) and the shared "log" volume (framework Vector log producer)
+	// are already present.
 	podSpec.Volumes = append(podSpec.Volumes, h.buildVolumes(buildCtx)...)
 	podSpec.Volumes = append(podSpec.Volumes, secretProvisioner.Volumes()...)
 
 	if len(podSpec.Containers) == 0 {
 		return fmt.Errorf("base handler produced no main container")
 	}
+	// The framework already renamed the primary container to "zookeeper"
+	// (BaseRoleGroupHandler.MainContainerName) and gave it the framework-managed "data" and
+	// "log" mounts, so append ZooKeeper's config/log-config/TLS mounts rather than replacing.
 	main := &podSpec.Containers[0]
-	// Name the main container "zookeeper" (common.ZkServerContainerName) for backward
-	// compatibility with the pre-framework layout. The role name ("server") is still used
-	// for the component label, but the container name is intentionally decoupled from it.
-	main.Name = common.ZkServerContainerName
 	main.Command = []string{"/bin/bash", "-x", "-euo", "pipefail", "-c"}
 	main.Args = h.getMainContainerArgs()
 	// User envOverrides (already on the container from the builder) win over our defaults.
 	main.Env = append(h.getEnvVars(roleGroupConfig), main.Env...)
 	main.ReadinessProbe = h.getReadinessProbe(zkSecurity)
 	main.LivenessProbe = h.getLivenessProbe(zkSecurity)
-	if main.SecurityContext == nil {
-		main.SecurityContext = &corev1.SecurityContext{}
-	}
-	main.VolumeMounts = h.getVolumeMounts()
+	// Drop the framework's /etc/config mount for the same reason (same "config" name, replaced
+	// by ours at KubedoopConfigDirMount), preserving the framework-managed data/log mounts.
+	removeNamedVolumeMount(main, zkv1alpha1.ConfigDirName)
+	main.VolumeMounts = append(main.VolumeMounts, h.getVolumeMounts()...)
 	main.VolumeMounts = append(main.VolumeMounts, secretProvisioner.VolumeMounts()...)
-
-	// Bridge the ZK log volume into the Vector native sidecar (an init container with
-	// restartPolicy: Always) so it can read ZK logs.
-	if vectorContainer := sidecar.FindInitContainer(podSpec, "vector"); vectorContainer != nil {
-		vectorContainer.VolumeMounts = append(vectorContainer.VolumeMounts, corev1.VolumeMount{
-			Name:      zkv1alpha1.LogDirName,
-			MountPath: constant.KubedoopLogDir,
-			ReadOnly:  true,
-		})
-	}
 	return nil
 }
 
-// removeNamedVolume removes a pod volume by name (used to drop the base handler's generic
-// config volume).
+// removeNamedVolume removes a pod volume by name (used to drop the framework's generic "config"
+// volume, which ZooKeeper re-adds at its own mount path).
 func removeNamedVolume(podSpec *corev1.PodSpec, name string) {
 	kept := podSpec.Volumes[:0]
 	for _, v := range podSpec.Volumes {
@@ -118,6 +105,18 @@ func removeNamedVolume(podSpec *corev1.PodSpec, name string) {
 		}
 	}
 	podSpec.Volumes = kept
+}
+
+// removeNamedVolumeMount removes a volume mount by name from a container (the counterpart to
+// removeNamedVolume: it strips the framework's /etc/config mount before we append ours).
+func removeNamedVolumeMount(container *corev1.Container, name string) {
+	kept := container.VolumeMounts[:0]
+	for _, m := range container.VolumeMounts {
+		if m.Name != name {
+			kept = append(kept, m)
+		}
+	}
+	container.VolumeMounts = kept
 }
 
 // buildPrepareContainer builds the myid init container. It is one-shot (nil RestartPolicy)
@@ -212,18 +211,19 @@ func (h *ZkRoleGroupHandler) servicePorts(zkSecurity *security.ZookeeperSecurity
 	}
 }
 
-// getVolumeMounts returns volume mounts for the main container.
+// getVolumeMounts returns the config and log-config volume mounts for the main container. The
+// "data" mount (framework WithStorage) and the shared "log" mount (framework Vector log
+// producer) are added by the builder and intentionally omitted here.
 func (h *ZkRoleGroupHandler) getVolumeMounts() []corev1.VolumeMount {
 	return []corev1.VolumeMount{
-		{Name: zkv1alpha1.DataDirName, MountPath: constant.KubedoopDataDir},
 		{Name: zkv1alpha1.ConfigDirName, MountPath: constant.KubedoopConfigDirMount},
 		{Name: zkv1alpha1.LogConfigDirName, MountPath: constant.KubedoopLogDirMount},
-		{Name: zkv1alpha1.LogDirName, MountPath: constant.KubedoopLogDir},
 	}
 }
 
-// buildVolumes returns the config/log/log-config volumes for the pod (the data volume is a
-// PVC template added by the framework builder).
+// buildVolumes returns the config and log-config ConfigMap volumes for the pod. The data
+// volume is a PVC template (framework WithStorage) and the shared "log" volume is created by
+// the framework's Vector log producer, so neither is built here.
 func (h *ZkRoleGroupHandler) buildVolumes(
 	buildCtx *reconciler.RoleGroupBuildContext,
 ) []corev1.Volume {
@@ -241,17 +241,6 @@ func (h *ZkRoleGroupHandler) buildVolumes(
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
 					LocalObjectReference: corev1.LocalObjectReference{Name: buildCtx.ResourceName},
-				},
-			},
-		},
-		{
-			Name: zkv1alpha1.LogDirName,
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{
-					SizeLimit: func() *resource.Quantity {
-						q := resource.MustParse(zkv1alpha1.MaxZKLogFileSize)
-						return &q
-					}(),
 				},
 			},
 		},
@@ -297,6 +286,5 @@ func (h *ZkRoleGroupHandler) getReadinessProbe(zkSecurity *security.ZookeeperSec
 	}
 }
 
-// Helper functions for pointer types
-func int64Ptr(v int64) *int64 { return &v }
-func boolPtr(v bool) *bool    { return &v }
+// boolPtr returns a pointer to a bool literal.
+func boolPtr(v bool) *bool { return &v }

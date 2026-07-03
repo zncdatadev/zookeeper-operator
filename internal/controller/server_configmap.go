@@ -1,11 +1,9 @@
 package controller
 
 import (
-	"context"
 	"fmt"
 	"maps"
 
-	"github.com/zncdatadev/operator-go/pkg/productlogging"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	opgosecurity "github.com/zncdatadev/operator-go/pkg/security"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
@@ -15,13 +13,10 @@ import (
 	"github.com/zncdatadev/zookeeper-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // buildConfigMap creates the ConfigMap for a server role group.
 func (h *ZkRoleGroupHandler) buildConfigMap(
-	ctx context.Context,
-	k8sClient client.Client,
 	cr *zkv1alpha1.ZookeeperCluster,
 	buildCtx *reconciler.RoleGroupBuildContext,
 	labels map[string]string,
@@ -37,27 +32,16 @@ func (h *ZkRoleGroupHandler) buildConfigMap(
 	// 2. Generate security.properties
 	data[zkv1alpha1.SecurityFileName] = h.generateSecurityProps(buildCtx)
 
-	// 3. Generate logback.xml from the merged CRD logging spec via the framework's logging
-	// pipeline (deep-merge -> convert -> render). Only the ZooKeeper-specific bits stay here:
-	// the encoder pattern (myid MDC) and the file appender name that feeds the Vector sidecar
-	// (which globs <logDir>/*.stdout.log).
-	logbackFile, logbackXML, err := reconciler.RenderContainerLogging(buildCtx, productlogging.ContainerLogging{
-		Container:  common.ZkServerContainerName,
-		Framework:  productlogging.LoggingFrameworkLogback,
-		Pattern:    "%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n",
-		OutputFile: "zookeeper.stdout.log",
-	})
+	// 3. Framework-owned logging config: logback.xml (from the deep-merged CRD logging spec, with
+	// the file appender gated on Vector) and, when Vector is enabled and the CR exposes the
+	// aggregator ConfigMap (VectorAggregatorConfigMapName), vector.yaml. h.LoggingContainers is
+	// the single declaration that also drives the shared log volume, so config and volume stay in
+	// lockstep.
+	loggingData, err := reconciler.RenderLoggingConfigMapData(buildCtx, h.LoggingContainers)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate logback config: %w", err)
+		return nil, fmt.Errorf("failed to render logging config: %w", err)
 	}
-	data[logbackFile] = logbackXML
-
-	// 4. Generate vector.yaml if logging is enabled
-	vectorData, err := h.buildVectorConfigMapData(ctx, k8sClient, cr, buildCtx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build vector config: %w", err)
-	}
-	maps.Copy(data, vectorData)
+	maps.Copy(data, loggingData)
 
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{

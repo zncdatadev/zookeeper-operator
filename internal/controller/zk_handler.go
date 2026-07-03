@@ -5,10 +5,12 @@ import (
 	"fmt"
 
 	"github.com/zncdatadev/operator-go/pkg/builder"
+	"github.com/zncdatadev/operator-go/pkg/productlogging"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	opgosecurity "github.com/zncdatadev/operator-go/pkg/security"
 	"github.com/zncdatadev/operator-go/pkg/sidecar"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
+	"github.com/zncdatadev/zookeeper-operator/internal/common"
 	"github.com/zncdatadev/zookeeper-operator/internal/constant"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
 	corev1 "k8s.io/api/core/v1"
@@ -43,6 +45,18 @@ const serverRoleName = "server"
 // bashShell is the shell used for exec probes and the container entrypoint script.
 const bashShell = "bash"
 
+// zkServerLogging is the single source of truth for the ZooKeeper main container's logging.
+// It drives both BaseRoleGroupHandler.LoggingContainers (the framework's shared Vector log
+// volume producer/consumer wiring) and the logback.xml + vector.yaml rendered into the role
+// group ConfigMap. Only the ZooKeeper-specific bits live here: the encoder pattern (myid MDC).
+// The framework derives the rolling file name the Vector sidecar globs from the container name
+// (<container>.stdout.log = "zookeeper.stdout.log").
+var zkServerLogging = productlogging.ContainerLogging{
+	Container: common.ZkServerContainerName,
+	Framework: productlogging.LoggingFrameworkLogback,
+	Pattern:   "%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n",
+}
+
 // NewZkRoleGroupHandler creates a handler with the framework-level options that are constant
 // across reconciliations. Per-CR options (image, ports) are set in BuildResources.
 func NewZkRoleGroupHandler(scheme *runtime.Scheme) *ZkRoleGroupHandler {
@@ -64,6 +78,13 @@ func NewZkRoleGroupHandler(scheme *runtime.Scheme) *ZkRoleGroupHandler {
 	// ZK peers must resolve each other before readiness, and data must be persistent.
 	h.PublishNotReadyAddresses = true
 	h.StorageMountPath = constant.KubedoopDataDir
+	// Rename the primary container to "zookeeper" (backward compat with the pre-framework
+	// layout) and declare it as the logging container. The framework renames the container
+	// before injecting the shared Vector log volume, so the producer mounts it on "zookeeper".
+	h.MainContainerName = common.ZkServerContainerName
+	h.LoggingContainers = []productlogging.ContainerLogging{zkServerLogging}
+	// Keep the pre-framework log volume size (the framework default is larger).
+	h.LogVolumeSize = zkv1alpha1.MaxZKLogFileSize
 	// Product-owned identity labels drive all resource selectors (decoupled from the
 	// descriptive app.kubernetes.io/* labels).
 	h.LabelDomain = LabelDomain
@@ -119,7 +140,7 @@ func (h *ZkRoleGroupHandler) BuildResources(
 
 	// Replace the ConfigMap with computed Zookeeper config (zoo.cfg, security.properties,
 	// logback.xml, vector.yaml). Reuse the framework labels base put on the StatefulSet.
-	cm, err := h.buildConfigMap(ctx, k8sClient, cr, buildCtx, res.StatefulSet.Labels, zkSecurity, secretProvisioner, replicas)
+	cm, err := h.buildConfigMap(cr, buildCtx, res.StatefulSet.Labels, zkSecurity, secretProvisioner, replicas)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build configmap: %w", err)
 	}
@@ -154,13 +175,9 @@ func (h *ZkRoleGroupHandler) registerServerContainers(buildCtx *reconciler.RoleG
 		&sidecar.SidecarConfig{Enabled: true},
 	)
 
-	// Point the Vector sidecar at our ConfigMap. (GenericReconciler does not call
-	// SetProductImage for embedding handlers, so do it here.)
-	if provider, ok := mgr.GetProvider("vector"); ok {
-		if vp, ok := provider.(*sidecar.VectorSidecarProvider); ok {
-			vp.WithConfigMapName(buildCtx.ResourceName)
-		}
-	}
+	// The framework's GenericReconciler already constructs the Vector sidecar pointed at this
+	// role group's ConfigMap (WithConfigMapName(ResourceName)); we only need to set the product
+	// image on the registered sidecars (not done for embedding handlers).
 	if err := mgr.SetProductImage(image, corev1.PullIfNotPresent); err != nil {
 		return fmt.Errorf("failed to set product image on sidecars: %w", err)
 	}

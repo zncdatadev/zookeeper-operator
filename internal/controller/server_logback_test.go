@@ -9,23 +9,29 @@ import (
 	"github.com/zncdatadev/operator-go/pkg/productlogging"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	"github.com/zncdatadev/zookeeper-operator/internal/common"
+	"k8s.io/utils/ptr"
 )
 
 // These tests exercise the ZooKeeper logback declaration through the framework logging
 // pipeline (reconciler.RenderContainerLogging) exactly as server_configmap.buildConfigMap
 // does. The generic conversion/merge is covered by operator-go's own tests; here we lock in
-// the ZooKeeper-specific bits: container key, encoder pattern (myid MDC) and the Vector
-// output file.
+// the ZooKeeper-specific bits: container key, encoder pattern (myid MDC), and the
+// framework-derived, Vector-gated rolling file appender ("zookeeper.stdout.log").
 var _ = Describe("ServerLogback wiring", func() {
+	// render with the Vector agent enabled: the file appender is Vector-coupled, so these tests
+	// (which assert on the file appender) enable it.
 	render := func(logging *commonsv1alpha1.LoggingSpec) (string, string, error) {
+		if logging == nil {
+			logging = &commonsv1alpha1.LoggingSpec{}
+		}
+		logging.EnableVectorAgent = ptr.To(true)
 		buildCtx := &reconciler.RoleGroupBuildContext{
 			MergedConfig: &config.MergedConfig{Logging: logging},
 		}
 		return reconciler.RenderContainerLogging(buildCtx, productlogging.ContainerLogging{
-			Container:  common.ZkServerContainerName,
-			Framework:  productlogging.LoggingFrameworkLogback,
-			Pattern:    "%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n",
-			OutputFile: "zookeeper.stdout.log",
+			Container: common.ZkServerContainerName,
+			Framework: productlogging.LoggingFrameworkLogback,
+			Pattern:   "%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n",
 		})
 	}
 
@@ -68,5 +74,20 @@ var _ = Describe("ServerLogback wiring", func() {
 		Expect(xml).To(ContainSubstring("ThresholdFilter"))
 		Expect(xml).To(ContainSubstring("<level>INFO</level>"))
 		Expect(xml).To(ContainSubstring("<level>ERROR</level>"))
+	})
+
+	It("omits the file appender (console-only) when the Vector agent is disabled", func() {
+		buildCtx := &reconciler.RoleGroupBuildContext{
+			MergedConfig: &config.MergedConfig{Logging: &commonsv1alpha1.LoggingSpec{}}, // no EnableVectorAgent
+		}
+		_, xml, err := reconciler.RenderContainerLogging(buildCtx, productlogging.ContainerLogging{
+			Container: common.ZkServerContainerName,
+			Framework: productlogging.LoggingFrameworkLogback,
+			Pattern:   "%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n",
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(xml).NotTo(ContainSubstring("zookeeper.stdout.log"))
+		Expect(xml).NotTo(ContainSubstring("RollingFileAppender"))
+		Expect(xml).To(ContainSubstring("[myid:%X{myid}]")) // console appender still uses the pattern
 	})
 })

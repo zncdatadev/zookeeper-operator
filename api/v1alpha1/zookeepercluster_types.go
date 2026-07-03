@@ -87,6 +87,17 @@ func (z *ZookeeperCluster) GetSpec() *commonsv1alpha1.GenericClusterSpec {
 	return z.Spec.ToGenericSpec()
 }
 
+// VectorAggregatorConfigMapName implements reconciler.VectorAggregatorProvider so the framework
+// owns vector.yaml generation: when a role group enables the Vector agent, the GenericReconciler
+// resolves the aggregator address from this ConfigMap and renders vector.yaml into the role group
+// ConfigMap. Returns "" when unset (the framework then omits vector.yaml).
+func (z *ZookeeperCluster) VectorAggregatorConfigMapName() string {
+	if z.Spec.ClusterConfig == nil || z.Spec.ClusterConfig.VectorAggregatorConfigMapName == nil {
+		return ""
+	}
+	return *z.Spec.ClusterConfig.VectorAggregatorConfigMapName
+}
+
 // GetStatus returns the cluster status.
 func (z *ZookeeperCluster) GetStatus() *commonsv1alpha1.GenericClusterStatus {
 	return &z.Status.GenericClusterStatus
