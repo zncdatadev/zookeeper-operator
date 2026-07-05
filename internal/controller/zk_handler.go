@@ -125,6 +125,12 @@ func (h *ZkRoleGroupHandler) BuildResources(
 		return nil, err
 	}
 
+	// Hand the CSI secret (TLS) volumes to the framework so base.BuildResources() injects them
+	// into the pod and the main container, instead of appending them by hand afterwards.
+	// VolumeProviders lives on the build context (rebuilt each reconcile), so registrations never
+	// accumulate across reconciles or leak across CRs.
+	buildCtx.VolumeProviders = append(buildCtx.VolumeProviders, secretProvisioner)
+
 	// Let the framework build the skeleton: canonical labels, headless Service (with
 	// PublishNotReadyAddresses), client Service, StatefulSet (data PVC + injected
 	// sidecars/init), and PodDisruptionBudget.
@@ -134,7 +140,7 @@ func (h *ZkRoleGroupHandler) BuildResources(
 	}
 
 	// Customize the StatefulSet with Zookeeper specifics.
-	if err := h.customizeStatefulSet(res.StatefulSet, buildCtx, zkSecurity, secretProvisioner); err != nil {
+	if err := h.customizeStatefulSet(res.StatefulSet, buildCtx, zkSecurity); err != nil {
 		return nil, err
 	}
 

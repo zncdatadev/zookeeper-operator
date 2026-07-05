@@ -10,7 +10,6 @@ import (
 	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	opgoconstant "github.com/zncdatadev/operator-go/pkg/constant"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
-	opgosecurity "github.com/zncdatadev/operator-go/pkg/security"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/constant"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
@@ -47,31 +46,26 @@ func (h *ZkRoleGroupHandler) ensureStorageDefault(buildCtx *reconciler.RoleGroup
 }
 
 // customizeStatefulSet applies Zookeeper specifics to the StatefulSet built by the base
-// handler: the start command, exec probes, and the TLS CSI volumes. Pod identity
-// (ServiceAccount), the default pod/container SecurityContext, the config ConfigMap mount, the
-// data PVC, the shared Vector log volume (on the renamed "zookeeper" container), ports,
-// resources and injected sidecars/init containers are already in place from the framework
-// builder.
+// handler: the start command, exec probes, env and heap sizing. Pod identity (ServiceAccount),
+// the default pod/container SecurityContext, the config ConfigMap mount, the data PVC, the
+// shared Vector log volume (on the renamed "zookeeper" container), the CSI secret (TLS) volumes
+// (registered via buildCtx.VolumeProviders), ports, resources and injected sidecars/init
+// containers are already in place from the framework builder.
 func (h *ZkRoleGroupHandler) customizeStatefulSet(
 	sts *appsv1.StatefulSet,
 	buildCtx *reconciler.RoleGroupBuildContext,
 	zkSecurity *security.ZookeeperSecurity,
-	secretProvisioner *opgosecurity.SecretProvisioner,
 ) error {
 	roleGroupConfig := buildCtx.RoleGroupSpec.GetConfig()
 	podSpec := &sts.Spec.Template.Spec
-
-	// The framework already mounts the role-group config ConfigMap ("config" at
-	// constant.KubedoopConfigDirMount), the data PVC and the shared Vector "log" volume.
-	// ZooKeeper only adds its TLS CSI volumes.
-	podSpec.Volumes = append(podSpec.Volumes, secretProvisioner.Volumes()...)
 
 	if len(podSpec.Containers) == 0 {
 		return fmt.Errorf("base handler produced no main container")
 	}
 	// The framework renamed the primary container to "zookeeper"
 	// (BaseRoleGroupHandler.MainContainerName) and gave it the framework-managed config/data/log
-	// mounts, so append only ZooKeeper's TLS mounts.
+	// mounts plus the registered CSI secret (TLS) volume mounts, so we only set the command, env
+	// and probes here.
 	main := &podSpec.Containers[0]
 	main.Command = []string{"/bin/bash", "-x", "-euo", "pipefail", "-c"}
 	main.Args = h.getMainContainerArgs()
@@ -79,7 +73,6 @@ func (h *ZkRoleGroupHandler) customizeStatefulSet(
 	main.Env = append(h.getEnvVars(roleGroupConfig), main.Env...)
 	main.ReadinessProbe = h.getReadinessProbe(zkSecurity)
 	main.LivenessProbe = h.getLivenessProbe(zkSecurity)
-	main.VolumeMounts = append(main.VolumeMounts, secretProvisioner.VolumeMounts()...)
 	return nil
 }
 
