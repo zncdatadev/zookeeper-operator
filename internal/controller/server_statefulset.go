@@ -114,7 +114,6 @@ CONFIG_DIR=%s
 mkdir --parents ${CONFIG_DIR}
 echo copying ${CONFIG_DIR_MOUNT} to ${CONFIG_DIR}
 cp -RL ${CONFIG_DIR_MOUNT}* ${CONFIG_DIR}`, opgoconstant.KubedoopConfigDirMount, constant.KubedoopConfigDir),
-		`ls /kubedoop/ > /dev/null 2>&1 || true`,
 		`echo "Starting Zookeeper"`,
 		// exec so the JVM replaces this shell and becomes the container's main process,
 		// receiving SIGTERM directly for graceful shutdown on pod termination. Vector
