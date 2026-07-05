@@ -8,6 +8,7 @@ import (
 	"github.com/zncdatadev/zookeeper-operator/internal/util"
 
 	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
+	opgoconstant "github.com/zncdatadev/operator-go/pkg/constant"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	opgosecurity "github.com/zncdatadev/operator-go/pkg/security"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
@@ -46,9 +47,9 @@ func (h *ZkRoleGroupHandler) ensureStorageDefault(buildCtx *reconciler.RoleGroup
 }
 
 // customizeStatefulSet applies Zookeeper specifics to the StatefulSet built by the base
-// handler: the start command and exec probes, the config/log-config volumes, and the TLS CSI
-// volumes. Pod identity (ServiceAccount), the default pod/container SecurityContext, the data
-// PVC, the shared Vector log volume (mounted on the renamed "zookeeper" container), ports,
+// handler: the start command, exec probes, and the TLS CSI volumes. Pod identity
+// (ServiceAccount), the default pod/container SecurityContext, the config ConfigMap mount, the
+// data PVC, the shared Vector log volume (on the renamed "zookeeper" container), ports,
 // resources and injected sidecars/init containers are already in place from the framework
 // builder.
 func (h *ZkRoleGroupHandler) customizeStatefulSet(
@@ -60,23 +61,17 @@ func (h *ZkRoleGroupHandler) customizeStatefulSet(
 	roleGroupConfig := buildCtx.RoleGroupSpec.GetConfig()
 	podSpec := &sts.Spec.Template.Spec
 
-	// The framework adds a generic "config" ConfigMap volume mounted at /etc/config whenever the
-	// merged config carries config files (user configOverrides feed buildConfigMap). ZooKeeper
-	// mounts the same ConfigMap at its own Kubedoop paths instead, so drop the framework's
-	// "config" volume (added below as zkv1alpha1.ConfigDirName, same name, different path).
-	removeNamedVolume(podSpec, zkv1alpha1.ConfigDirName)
-	// ZooKeeper's own config / log-config ConfigMap volumes plus the TLS CSI volumes. The data
-	// PVC (framework WithStorage) and the shared "log" volume (framework Vector log producer)
-	// are already present.
-	podSpec.Volumes = append(podSpec.Volumes, h.buildVolumes(buildCtx)...)
+	// The framework already mounts the role-group config ConfigMap ("config" at
+	// constant.KubedoopConfigDirMount), the data PVC and the shared Vector "log" volume.
+	// ZooKeeper only adds its TLS CSI volumes.
 	podSpec.Volumes = append(podSpec.Volumes, secretProvisioner.Volumes()...)
 
 	if len(podSpec.Containers) == 0 {
 		return fmt.Errorf("base handler produced no main container")
 	}
-	// The framework already renamed the primary container to "zookeeper"
-	// (BaseRoleGroupHandler.MainContainerName) and gave it the framework-managed "data" and
-	// "log" mounts, so append ZooKeeper's config/log-config/TLS mounts rather than replacing.
+	// The framework renamed the primary container to "zookeeper"
+	// (BaseRoleGroupHandler.MainContainerName) and gave it the framework-managed config/data/log
+	// mounts, so append only ZooKeeper's TLS mounts.
 	main := &podSpec.Containers[0]
 	main.Command = []string{"/bin/bash", "-x", "-euo", "pipefail", "-c"}
 	main.Args = h.getMainContainerArgs()
@@ -84,36 +79,8 @@ func (h *ZkRoleGroupHandler) customizeStatefulSet(
 	main.Env = append(h.getEnvVars(roleGroupConfig), main.Env...)
 	main.ReadinessProbe = h.getReadinessProbe(zkSecurity)
 	main.LivenessProbe = h.getLivenessProbe(zkSecurity)
-	// Drop the framework's /etc/config mount for the same reason (same "config" name, replaced
-	// by ours at KubedoopConfigDirMount), preserving the framework-managed data/log mounts.
-	removeNamedVolumeMount(main, zkv1alpha1.ConfigDirName)
-	main.VolumeMounts = append(main.VolumeMounts, h.getVolumeMounts()...)
 	main.VolumeMounts = append(main.VolumeMounts, secretProvisioner.VolumeMounts()...)
 	return nil
-}
-
-// removeNamedVolume removes a pod volume by name (used to drop the framework's generic "config"
-// volume, which ZooKeeper re-adds at its own mount path).
-func removeNamedVolume(podSpec *corev1.PodSpec, name string) {
-	kept := podSpec.Volumes[:0]
-	for _, v := range podSpec.Volumes {
-		if v.Name != name {
-			kept = append(kept, v)
-		}
-	}
-	podSpec.Volumes = kept
-}
-
-// removeNamedVolumeMount removes a volume mount by name from a container (the counterpart to
-// removeNamedVolume: it strips the framework's /etc/config mount before we append ours).
-func removeNamedVolumeMount(container *corev1.Container, name string) {
-	kept := container.VolumeMounts[:0]
-	for _, m := range container.VolumeMounts {
-		if m.Name != name {
-			kept = append(kept, m)
-		}
-	}
-	container.VolumeMounts = kept
 }
 
 // buildPrepareContainer builds the myid init container. It is one-shot (nil RestartPolicy)
@@ -147,13 +114,13 @@ func (h *ZkRoleGroupHandler) getMainContainerArgs() []string {
 	zkConfigPath := path.Join(constant.KubedoopConfigDir, "zoo.cfg")
 
 	args := []string{
-		fmt.Sprintf(`LOG_CONFIG_DIR_MOUNT=%s
-CONFIG_DIR_MOUNT=%s
+		// The framework mounts the config ConfigMap read-only at KubedoopConfigDirMount; copy it
+		// into the writable config dir (logback.xml and zoo.cfg included — all in that ConfigMap).
+		fmt.Sprintf(`CONFIG_DIR_MOUNT=%s
 CONFIG_DIR=%s
 mkdir --parents ${CONFIG_DIR}
-echo copying ${LOG_CONFIG_DIR_MOUNT} to ${CONFIG_DIR}, ${CONFIG_DIR_MOUNT} to ${CONFIG_DIR}
-cp -RL ${LOG_CONFIG_DIR_MOUNT}* ${CONFIG_DIR}
-cp -RL ${CONFIG_DIR_MOUNT}* ${CONFIG_DIR}`, constant.KubedoopLogDirMount, constant.KubedoopConfigDirMount, constant.KubedoopConfigDir),
+echo copying ${CONFIG_DIR_MOUNT} to ${CONFIG_DIR}
+cp -RL ${CONFIG_DIR_MOUNT}* ${CONFIG_DIR}`, opgoconstant.KubedoopConfigDirMount, constant.KubedoopConfigDir),
 		`ls /kubedoop/ > /dev/null 2>&1 || true`,
 		`echo "Starting Zookeeper"`,
 		// exec so the JVM replaces this shell and becomes the container's main process,
@@ -205,42 +172,6 @@ func (h *ZkRoleGroupHandler) servicePorts(zkSecurity *security.ZookeeperSecurity
 	return []corev1.ServicePort{
 		{Name: zkv1alpha1.ClientPortName, Port: clientPort, TargetPort: intstr.FromInt(int(clientPort))},
 		{Name: zkv1alpha1.MetricsPortName, Port: zkv1alpha1.MetricsPort, TargetPort: intstr.FromInt(int(zkv1alpha1.MetricsPort))},
-	}
-}
-
-// getVolumeMounts returns the config and log-config volume mounts for the main container. The
-// "data" mount (framework WithStorage) and the shared "log" mount (framework Vector log
-// producer) are added by the builder and intentionally omitted here.
-func (h *ZkRoleGroupHandler) getVolumeMounts() []corev1.VolumeMount {
-	return []corev1.VolumeMount{
-		{Name: zkv1alpha1.ConfigDirName, MountPath: constant.KubedoopConfigDirMount},
-		{Name: zkv1alpha1.LogConfigDirName, MountPath: constant.KubedoopLogDirMount},
-	}
-}
-
-// buildVolumes returns the config and log-config ConfigMap volumes for the pod. The data
-// volume is a PVC template (framework WithStorage) and the shared "log" volume is created by
-// the framework's Vector log producer, so neither is built here.
-func (h *ZkRoleGroupHandler) buildVolumes(
-	buildCtx *reconciler.RoleGroupBuildContext,
-) []corev1.Volume {
-	return []corev1.Volume{
-		{
-			Name: zkv1alpha1.ConfigDirName,
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{Name: buildCtx.ResourceName},
-				},
-			},
-		},
-		{
-			Name: zkv1alpha1.LogConfigDirName,
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{Name: buildCtx.ResourceName},
-				},
-			},
-		},
 	}
 }
 
