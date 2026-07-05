@@ -18,22 +18,21 @@ package znodecontroller
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/finalizer"
 
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
 )
-
-var ErrZookeeperCluster = errors.New("zookeeper cluster get failed")
 
 // ZookeeperZnodeReconciler reconciles a ZookeeperZnode object
 type ZookeeperZnodeReconciler struct {
@@ -68,8 +67,17 @@ func (r *ZookeeperZnodeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	zkCluster, err := r.getClusterInstance(znode, ctx)
 	if err != nil {
-		if errors.Is(err, ErrZookeeperCluster) {
-			return ctrl.Result{RequeueAfter: time.Millisecond * 10000}, nil
+		if apierrors.IsNotFound(err) {
+			// The referenced ZookeeperCluster does not exist. If the znode is being deleted, there
+			// is no ensemble left to remove the znode from, so drop our finalizer and let the
+			// object be deleted — otherwise it would requeue forever, stuck behind a finalizer that
+			// can never reach ZooKeeper. If the cluster simply has not been created yet, wait.
+			if !znode.DeletionTimestamp.IsZero() {
+				return ctrl.Result{}, r.clearDeleteFinalizer(ctx, znode)
+			}
+			r.Log.Info("referenced ZookeeperCluster not found; waiting for it to appear",
+				"clusterRef", znode.Spec.ClusterRef)
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 		return ctrl.Result{}, err
 	}
@@ -110,9 +118,25 @@ func (r *ZookeeperZnodeReconciler) getClusterInstance(znode *zkv1alpha1.Zookeepe
 	clusterInstance := &zkv1alpha1.ZookeeperCluster{}
 	key := ctrlclient.ObjectKey{Namespace: namespace, Name: clusterRef.Name}
 	if err := r.Get(ctx, key, clusterInstance); err != nil {
-		return nil, ErrZookeeperCluster
+		// Preserve the original error so the caller can distinguish "not found" (cluster gone or
+		// not yet created) from a transient API error.
+		return nil, err
 	}
 	return clusterInstance, nil
+}
+
+// clearDeleteFinalizer removes the znode delete finalizer without contacting ZooKeeper. Used when
+// the referenced ZookeeperCluster no longer exists: the ensemble (and the znode within it) is
+// already gone, so there is nothing to delete and the object must not stay stuck behind a
+// finalizer that can never complete.
+func (r *ZookeeperZnodeReconciler) clearDeleteFinalizer(ctx context.Context, znode *zkv1alpha1.ZookeeperZnode) error {
+	if controllerutil.RemoveFinalizer(znode, ZNodeDeleteFinalizer) {
+		if err := r.Update(ctx, znode); err != nil {
+			return fmt.Errorf("failed to remove znode finalizer after cluster deletion: %w", err)
+		}
+		r.Log.Info("removed znode finalizer; referenced ZookeeperCluster is gone", "name", znode.Name)
+	}
+	return nil
 }
 
 func (r *ZookeeperZnodeReconciler) setupFinalizer(cr *zkv1alpha1.ZookeeperZnode, zkCluster *zkv1alpha1.ZookeeperCluster,
