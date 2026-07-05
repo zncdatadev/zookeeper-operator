@@ -64,14 +64,22 @@ func (z *ZookeeperSecurity) ClientPort() uint16 {
 func (z *ZookeeperSecurity) ConfigSettings(provisioner *opgosecurity.SecretProvisioner) map[string]string {
 	config := make(map[string]string)
 
+	// Common TLS settings, required whenever ANY TLS is enabled — client/server TLS
+	// (z.TLSEnabled()) OR quorum TLS (z.quorumSecretClass). ZooKeeper's TLS support requires the
+	// Netty connection factory (the default NIO factory does not support TLS), and X509 client
+	// authentication needs the X509 auth provider. These must NOT be gated on quorum alone: a
+	// client-TLS-only config (e.g. a TLS AuthenticationClass with no `tls` block) still needs them.
+	if z.TLSEnabled() || z.quorumSecretClass != "" {
+		config[ServerCnxnFactory] = "org.apache.zookeeper.server.NettyServerCnxnFactory"
+		config[SSLAuthProviderX509] = "org.apache.zookeeper.server.auth.X509AuthenticationProvider"
+	}
+
 	if z.quorumSecretClass != "" {
 		authNeeded := "need"
 		// Quorum TLS
 		config[SSLQuorum] = TrueString
 		config[SSLQuorumHostNameVerification] = TrueString
 		config[SSLQuorumClientAuth] = authNeeded
-		config[ServerCnxnFactory] = "org.apache.zookeeper.server.NettyServerCnxnFactory"
-		config[SSLAuthProviderX509] = "org.apache.zookeeper.server.auth.X509AuthenticationProvider"
 		config[SSLQuorumKeyStoreLocation] = fmt.Sprintf("%s/keystore.p12", provisioner.MustPath(QuorumTlsVolumeName))
 		config[SSLQuorumTrustStoreLocation] = fmt.Sprintf("%s/truststore.p12", provisioner.MustPath(QuorumTlsVolumeName))
 		if z.sslStorePassword != "" {
