@@ -60,9 +60,6 @@ func (h *ZkRoleGroupHandler) customizeStatefulSet(
 	roleGroupConfig := buildCtx.RoleGroupSpec.GetConfig()
 	podSpec := &sts.Spec.Template.Spec
 
-	// Don't pollute the pod env with links to every service in the namespace.
-	podSpec.EnableServiceLinks = boolPtr(false)
-
 	// The framework adds a generic "config" ConfigMap volume mounted at /etc/config whenever the
 	// merged config carries config files (user configOverrides feed buildConfigMap). ZooKeeper
 	// mounts the same ConfigMap at its own Kubedoop paths instead, so drop the framework's
@@ -285,6 +282,3 @@ func (h *ZkRoleGroupHandler) getReadinessProbe(zkSecurity *security.ZookeeperSec
 		TimeoutSeconds:   1,
 	}
 }
-
-// boolPtr returns a pointer to a bool literal.
-func boolPtr(v bool) *bool { return &v }
