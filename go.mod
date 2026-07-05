@@ -2,21 +2,16 @@ module github.com/zncdatadev/zookeeper-operator
 
 go 1.25.8
 
-// DO NOT REMOVE until the base-operator-go refactor is complete.
-// The framework refactor is still in progress and developed locally, so we build
-// against ../operator-go. Only drop this replace (and pin operator-go to a released
-// version) once the refactor lands upstream and is tagged.
-replace github.com/zncdatadev/operator-go => ../operator-go
-
 require (
 	github.com/go-logr/logr v1.4.3
 	github.com/onsi/ginkgo/v2 v2.28.3
 	github.com/onsi/gomega v1.40.0
 	github.com/samuel/go-zookeeper v0.0.0-20201211165307-7117e9ea2414
-	github.com/zncdatadev/operator-go v0.0.0-00010101000000-000000000000
+	github.com/zncdatadev/operator-go v0.12.7-0.20260705104121-d90fc0400ed4
 	k8s.io/api v0.35.4
 	k8s.io/apimachinery v0.35.4
 	k8s.io/client-go v0.35.4
+	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5
 	sigs.k8s.io/controller-runtime v0.23.3
 )
 
@@ -102,7 +97,6 @@ require (
 	k8s.io/component-base v0.35.0 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
-	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
