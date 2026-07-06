@@ -55,8 +55,64 @@ func (e *ClusterServiceExtension) PreReconcile(ctx context.Context, c client.Cli
 	return e.ensureClusterService(ctx, c, zkCluster)
 }
 
-// PostReconcile is a no-op.
-func (e *ClusterServiceExtension) PostReconcile(_ context.Context, _ client.Client, _ opcommon.ClusterInterface) error {
+// PostReconcile creates the cluster-level discovery ConfigMap(s) after the role groups (and their
+// pods/endpoints) have been reconciled.
+func (e *ClusterServiceExtension) PostReconcile(ctx context.Context, c client.Client, cr opcommon.ClusterInterface) error {
+	zkCluster, ok := cr.(*zkv1alpha1.ZookeeperCluster)
+	if !ok {
+		return nil
+	}
+	return e.ensureClusterDiscovery(ctx, c, zkCluster)
+}
+
+// ensureClusterDiscovery creates the cluster-level discovery ConfigMap(s) so clients can connect
+// to the whole ensemble at the root znode "/" WITHOUT creating a ZookeeperZnode. This restores
+// pre-refactor behavior: the cluster reconcile owned a discovery ConfigMap named after the cluster
+// (the GenericReconciler only builds role-group-scoped resources, and the ZookeeperZnode controller
+// only creates per-znode discovery). A ClusterInternal ConfigMap ("<cluster>") is always produced;
+// an ExternalUnstable ConfigMap ("<cluster>-nodeport") is added for the external-unstable listener
+// class, mirroring the per-znode discovery the ZookeeperZnode controller emits.
+func (e *ClusterServiceExtension) ensureClusterDiscovery(ctx context.Context, c client.Client, cr *zkv1alpha1.ZookeeperCluster) error {
+	zkSecurity, err := security.NewZookeeperSecurity(ctx, c, cr.Spec.ClusterConfig)
+	if err != nil {
+		return fmt.Errorf("failed to resolve zookeeper security for cluster discovery: %w", err)
+	}
+	// Root znode: the cluster-level discovery advertises the ensemble at "/".
+	znodeInfo := &common.ZNodeInfo{Name: cr.Name, Namespace: cr.Namespace, ZNodePath: "/"}
+
+	if err := e.applyDiscoveryConfigMap(ctx, c, cr, zkSecurity, znodeInfo, zkv1alpha1.ClusterInternal); err != nil {
+		return err
+	}
+	if cr.Spec.ClusterConfig != nil && cr.Spec.ClusterConfig.ListenerClass == zkv1alpha1.ExternalUnstable {
+		if err := e.applyDiscoveryConfigMap(ctx, c, cr, zkSecurity, znodeInfo, zkv1alpha1.ExternalUnstable); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// applyDiscoveryConfigMap builds a discovery ConfigMap via the shared discoverer and applies it,
+// owned by the cluster so it is garbage-collected with it.
+func (e *ClusterServiceExtension) applyDiscoveryConfigMap(
+	ctx context.Context,
+	c client.Client,
+	cr *zkv1alpha1.ZookeeperCluster,
+	zkSecurity *security.ZookeeperSecurity,
+	znodeInfo *common.ZNodeInfo,
+	listenerClass zkv1alpha1.ListenerClass,
+) error {
+	desired, err := common.CreateDiscoveryConfigMap(ctx, c, cr, cr, zkSecurity, znodeInfo, listenerClass)
+	if err != nil {
+		return err
+	}
+	cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: desired.Name, Namespace: desired.Namespace}}
+	if _, err := controllerutil.CreateOrUpdate(ctx, c, cm, func() error {
+		cm.Labels = desired.Labels
+		cm.Data = desired.Data
+		return controllerutil.SetControllerReference(cr, cm, e.scheme)
+	}); err != nil {
+		return fmt.Errorf("failed to apply discovery configmap %s/%s: %w", desired.Namespace, desired.Name, err)
+	}
 	return nil
 }
 
