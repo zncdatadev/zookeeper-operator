@@ -66,4 +66,4 @@ spec:
               value: ($namespace)
           content: |
             #!/bin/bash
-            kubectl -n $NAMESPACE exec test-zk-server-default-0 -c server -- /tmp/test_tls.sh $NAMESPACE
+            kubectl -n $NAMESPACE exec test-zk-server-default-0 -c zookeeper -- /tmp/test_tls.sh $NAMESPACE
