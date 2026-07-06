@@ -13,6 +13,7 @@ import (
 	"github.com/zncdatadev/zookeeper-operator/internal/common"
 	"github.com/zncdatadev/zookeeper-operator/internal/constant"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
+	"github.com/zncdatadev/zookeeper-operator/internal/util/version"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -230,25 +231,30 @@ func (h *ZkRoleGroupHandler) buildSecretProvisioner(zkSecurity *security.Zookeep
 
 // resolveImage constructs the container image string from the CR spec.
 func (h *ZkRoleGroupHandler) resolveImage(cr *zkv1alpha1.ZookeeperCluster) string {
-	if cr.Spec.Image == nil {
-		return fmt.Sprintf("%s/%s:%s", zkv1alpha1.DefaultRepository,
-			zkv1alpha1.DefaultProductName, zkv1alpha1.DefaultProductVersion)
+	repo := zkv1alpha1.DefaultRepository
+	productVersion := zkv1alpha1.DefaultProductVersion
+	// The kubedoop platform version defaults to the operator's own build version, so the tag
+	// resolves to the co-released product image (e.g. "3.9.3-kubedoop0.0.0-dev"). The kubedoop
+	// product images are ONLY published with this suffix — a bare "<productVersion>" tag does
+	// not exist — so the suffix must always be present.
+	kubedoopVersion := version.BuildVersion
+
+	if cr.Spec.Image != nil {
+		img := cr.Spec.Image
+		if img.Custom != "" {
+			return img.Custom
+		}
+		if img.Repo != "" {
+			repo = img.Repo
+		}
+		if img.ProductVersion != "" {
+			productVersion = img.ProductVersion
+		}
+		if img.KubedoopVersion != "" {
+			kubedoopVersion = img.KubedoopVersion
+		}
 	}
-	img := cr.Spec.Image
-	if img.Custom != "" {
-		return img.Custom
-	}
-	repo := img.Repo
-	if repo == "" {
-		repo = zkv1alpha1.DefaultRepository
-	}
-	productVersion := img.ProductVersion
-	if productVersion == "" {
-		productVersion = zkv1alpha1.DefaultProductVersion
-	}
-	if img.KubedoopVersion != "" {
-		return fmt.Sprintf("%s/%s:%s-kubedoop%s",
-			repo, zkv1alpha1.DefaultProductName, productVersion, img.KubedoopVersion)
-	}
-	return fmt.Sprintf("%s/%s:%s", repo, zkv1alpha1.DefaultProductName, productVersion)
+
+	return fmt.Sprintf("%s/%s:%s-kubedoop%s",
+		repo, zkv1alpha1.DefaultProductName, productVersion, kubedoopVersion)
 }
