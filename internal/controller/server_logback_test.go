@@ -48,7 +48,7 @@ var _ = Describe("ServerLogback wiring", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(file).To(Equal("logback.xml"))
 		Expect(xml).To(ContainSubstring(`<root level="INFO">`))
-		Expect(xml).To(ContainSubstring("<file>/kubedoop/log/zookeeper.stdout.log</file>"))
+		Expect(xml).To(ContainSubstring("<file>/kubedoop/log/zookeeper/zookeeper.log4j.xml</file>"))
 		Expect(xml).To(ContainSubstring("[myid:%X{myid}]"))
 	})
 

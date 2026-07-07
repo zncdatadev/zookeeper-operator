@@ -50,8 +50,8 @@ const bashShell = "bash"
 // It drives both BaseRoleGroupHandler.LoggingContainers (the framework's shared Vector log
 // volume producer/consumer wiring) and the logback.xml + vector.yaml rendered into the role
 // group ConfigMap. Only the ZooKeeper-specific bits live here: the encoder pattern (myid MDC).
-// The framework derives the rolling file name the Vector sidecar globs from the container name
-// (<container>.stdout.log = "zookeeper.stdout.log").
+// The framework derives the per-container log file the Vector sidecar collects
+// (/kubedoop/log/<container>/<container>.log4j.xml).
 var zkServerLogging = productlogging.ContainerLogging{
 	Container: common.ZkServerContainerName,
 	Framework: productlogging.LoggingFrameworkLogback,
@@ -166,7 +166,11 @@ func (h *ZkRoleGroupHandler) BuildResources(
 		buildCtx.ClusterNamespace,
 		zkv1alpha1.MetricsPort,
 		res.StatefulSet.Labels,
-	).WithSelector(h.SelectorLabels(buildCtx)).Build()
+	).WithSelector(h.SelectorLabels(buildCtx)).
+		// Target the container port by name so the Service stays valid regardless of the numeric
+		// port and matches the metrics port the pods actually expose.
+		WithTargetPortName(zkv1alpha1.MetricsPortName).
+		Build()
 
 	return res, nil
 }
