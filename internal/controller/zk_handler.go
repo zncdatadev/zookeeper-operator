@@ -122,7 +122,7 @@ func (h *ZkRoleGroupHandler) BuildResources(
 	// Register the containers that the SidecarManager will inject (myid init container +
 	// product image on Vector). This must happen before base.BuildResources(), which runs
 	// SidecarManager.InjectAll() internally.
-	if err := h.registerServerContainers(buildCtx, image); err != nil {
+	if err := h.registerServerContainers(buildCtx, image, resolveMinServerID(cr)); err != nil {
 		return nil, err
 	}
 
@@ -177,12 +177,12 @@ func (h *ZkRoleGroupHandler) BuildResources(
 
 // registerServerContainers registers the myid init container and configures the Vector
 // sidecar on the SidecarManager so that base.BuildResources() injects them.
-func (h *ZkRoleGroupHandler) registerServerContainers(buildCtx *reconciler.RoleGroupBuildContext, image string) error {
+func (h *ZkRoleGroupHandler) registerServerContainers(buildCtx *reconciler.RoleGroupBuildContext, image string, minServerID int32) error {
 	mgr := buildCtx.SidecarManager // always non-nil (GenericReconciler guarantees it)
 
 	// myid init container — a one-shot init (nil RestartPolicy), injected through the manager.
 	mgr.Register(
-		sidecar.NewStaticContainerProvider(h.buildPrepareContainer(image)),
+		sidecar.NewStaticContainerProvider(h.buildPrepareContainer(image, minServerID)),
 		&sidecar.SidecarConfig{Enabled: true},
 	)
 

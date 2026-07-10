@@ -107,13 +107,10 @@ func (h *ZkRoleGroupHandler) generateServerList(
 	zkSecurity *security.ZookeeperSecurity,
 ) map[string]string {
 	servers := make(map[string]string)
-	minServerId := int32(1)
-	if cr.Spec.ClusterConfig != nil {
-		minServerId = cr.Spec.ClusterConfig.MinServerId
-	}
+	minServerID := resolveMinServerID(cr)
 
 	for i := int32(0); i < replicas; i++ {
-		zkMyId := i + minServerId
+		zkMyId := i + minServerID
 		serverKey := fmt.Sprintf("server.%d", zkMyId)
 		podName := fmt.Sprintf("%s-%d", buildCtx.ResourceName, i)
 		// The StatefulSet is governed by the framework's headless service, named
@@ -123,6 +120,19 @@ func (h *ZkRoleGroupHandler) generateServerList(
 		servers[serverKey] = server
 	}
 	return servers
+}
+
+// resolveMinServerID returns the myid assigned to the first server (pod ordinal 0) of the
+// ensemble. It is the single source of truth for the myid numbering: generateServerList keys the
+// zoo.cfg "server.N" entries off it, and buildPrepareContainer writes each pod's myid file as
+// resolveMinServerID + ordinal, so the two always line up. ZooKeeper requires myid in [1,255], so
+// a value below 1 (e.g. an explicit minServerId: 0, which would otherwise produce the invalid
+// server.0) is clamped to 1.
+func resolveMinServerID(cr *zkv1alpha1.ZookeeperCluster) int32 {
+	if cr.Spec.ClusterConfig != nil && cr.Spec.ClusterConfig.MinServerId > 0 {
+		return cr.Spec.ClusterConfig.MinServerId
+	}
+	return 1
 }
 
 // generateSecurityProps generates security.properties content.

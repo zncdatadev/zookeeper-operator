@@ -78,7 +78,7 @@ func (h *ZkRoleGroupHandler) customizeStatefulSet(
 
 // buildPrepareContainer builds the myid init container. It is one-shot (nil RestartPolicy)
 // and registered through the SidecarManager (see registerServerContainers).
-func (h *ZkRoleGroupHandler) buildPrepareContainer(image string) corev1.Container {
+func (h *ZkRoleGroupHandler) buildPrepareContainer(image string, minServerID int32) corev1.Container {
 	return corev1.Container{
 		Name:            "prepare",
 		Image:           image,
@@ -91,7 +91,9 @@ func (h *ZkRoleGroupHandler) buildPrepareContainer(image string) corev1.Containe
 			{Name: zkv1alpha1.DataDirName, MountPath: constant.KubedoopDataDir},
 		},
 		Env: []corev1.EnvVar{
-			{Name: "MYID_OFFSET", Value: "1"},
+			// Must equal resolveMinServerID (which keys the zoo.cfg server.N entries) so each pod's
+			// myid file — MYID_OFFSET + pod ordinal — matches the server.N id the config expects.
+			{Name: "MYID_OFFSET", Value: fmt.Sprintf("%d", minServerID)},
 			{
 				Name: "POD_NAME",
 				ValueFrom: &corev1.EnvVarSource{
@@ -128,8 +130,9 @@ cp -RL ${CONFIG_DIR_MOUNT}* ${CONFIG_DIR}`, opgoconstant.KubedoopConfigDirMount,
 func (h *ZkRoleGroupHandler) getEnvVars(
 	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
 ) []corev1.EnvVar {
+	// The myid file is written by the prepare init container (buildPrepareContainer); the main
+	// container never reads MYID_OFFSET, so it is intentionally not set here.
 	envs := []corev1.EnvVar{
-		{Name: "MYID_OFFSET", Value: "1"},
 		{Name: "SERVER_JVMFLAGS", Value: util.JvmJmxOpts(zkv1alpha1.MetricsPort)},
 	}
 
