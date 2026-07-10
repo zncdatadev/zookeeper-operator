@@ -1,0 +1,33 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: smoke-config-defaults
+spec:
+  bindings:
+    - name: zookeeper_version
+      value: ($values.product_version)
+  steps:
+  - name: install a minimal zookeeper cluster
+    try:
+    - apply:
+        file: zk.yaml
+    # Asserts the default graceful-shutdown window and pod anti-affinity are present.
+    - assert:
+        file: zk-assert.yaml
+  - name: verify default resources and heap
+    try:
+    - script:
+        env:
+          - name: NAMESPACE
+            value: ($namespace)
+        content: |
+          #!/bin/bash
+          set -euo pipefail
+          sts=$(kubectl -n "$NAMESPACE" get sts test-zk-server-default -o yaml)
+          zk=$(echo "$sts" | yq '.spec.template.spec.containers[] | select(.name == "zookeeper")')
+          # CPU/memory requests+limits are defaulted (100m/200m, 512Mi).
+          echo "$zk" | yq -e '.resources.requests.cpu == "100m"'
+          echo "$zk" | yq -e '.resources.limits.cpu == "200m"'
+          echo "$zk" | yq -e '.resources.limits.memory == "512Mi"'
+          # JVM heap is derived from the defaulted memory (512Mi * 0.8 = 410).
+          echo "$zk" | yq -e '.env[] | select(.name == "ZK_SERVER_HEAP") | .value == "410"'

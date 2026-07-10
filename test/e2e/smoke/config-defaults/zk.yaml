@@ -1,0 +1,14 @@
+apiVersion: zookeeper.kubedoop.dev/v1alpha1
+kind: ZookeeperCluster
+metadata:
+  name: test-zk
+spec:
+  image:
+    productVersion: ($values.product_version)
+  # Deliberately minimal: no resources, affinity or gracefulShutdownTimeout. The operator must
+  # still apply its ZooKeeper defaults (CPU/memory requests+limits, JVM heap, a pod anti-affinity
+  # that spreads members across nodes, and a 120s graceful-shutdown window).
+  servers:
+    roleGroups:
+      default:
+        replicas: 1

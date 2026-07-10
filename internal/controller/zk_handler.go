@@ -116,8 +116,9 @@ func (h *ZkRoleGroupHandler) BuildResources(
 	h.Image = image
 	h.SetRoleContainerPorts(serverRoleName, h.containerPorts(zkSecurity))
 	h.SetRoleServicePorts(serverRoleName, h.servicePorts(zkSecurity))
-	// Ensure the data PVC is built even when the user omits resources.storage.
-	h.ensureStorageDefault(buildCtx)
+	// Fill in ZooKeeper role group defaults (storage, CPU/memory, anti-affinity, graceful
+	// shutdown) the framework does not supply, before base.BuildResources consumes the config.
+	h.ensureServerConfigDefaults(cr, buildCtx)
 
 	// Register the containers that the SidecarManager will inject (myid init container +
 	// product image on Vector). This must happen before base.BuildResources(), which runs

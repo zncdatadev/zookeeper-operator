@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"fmt"
 	"path"
 	"strings"
@@ -16,33 +17,130 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-// defaultStorageCapacity is the fallback data PVC size when resources.storage is not
-// specified. It mirrors the CRD default (StorageResource.Capacity) so a minimal
-// ZookeeperCluster (no resources block) still gets persistent storage.
-const defaultStorageCapacity = "10Gi"
+// ZooKeeper role group defaults. The base-operator-go framework applies resources, affinity and
+// gracefulShutdownTimeout only when the merged role group config already carries them, so
+// ZooKeeper supplies its own defaults here (matching the pre-framework behavior). Storage mirrors
+// the CRD default so a minimal cluster still gets a data PVC.
+const (
+	defaultStorageCapacity  = "10Gi"
+	defaultCPUMin           = "100m"
+	defaultCPUMax           = "200m"
+	defaultMemoryLimit      = "512Mi"
+	defaultGracefulShutdown = "120s"
+	// antiAffinityWeight biases (does not force) the scheduler to spread ensemble members across
+	// nodes, so a single node failure cannot take down the quorum.
+	antiAffinityWeight = 70
+)
 
-// ensureStorageDefault makes sure the merged role group config carries a storage spec, so
-// the framework's StatefulSetBuilder.WithStorage builds the data PVC even when the user
-// omits resources.storage. Without this the "data" volume mount has no backing PVC and the
-// StatefulSet is rejected.
-func (h *ZkRoleGroupHandler) ensureStorageDefault(buildCtx *reconciler.RoleGroupBuildContext) {
-	cfg := buildCtx.RoleGroupSpec.Config
-	if cfg == nil {
-		cfg = &commonsv1alpha1.RoleGroupConfigSpec{}
-		buildCtx.RoleGroupSpec.Config = cfg
+// ensureServerConfigDefaults fills in the ZooKeeper role group defaults the framework does not
+// supply on its own: storage capacity, CPU/memory requests+limits, a preferred pod anti-affinity
+// that spreads ensemble members across nodes, and a 120s graceful-shutdown window. Values are
+// written into the role group config the framework reads (buildCtx.RoleGroupSpec.Config) with
+// field-level precedence group > role > default, so any value the user sets at either level is
+// preserved. Folding the role-level value in here is also what makes role-level config take
+// effect, since the framework itself only reads the role-group config.
+func (h *ZkRoleGroupHandler) ensureServerConfigDefaults(cr *zkv1alpha1.ZookeeperCluster, buildCtx *reconciler.RoleGroupBuildContext) {
+	if buildCtx.RoleGroupSpec.Config == nil {
+		buildCtx.RoleGroupSpec.Config = &commonsv1alpha1.RoleGroupConfigSpec{}
 	}
+	cfg := buildCtx.RoleGroupSpec.Config
+
+	var roleRes *commonsv1alpha1.ResourcesSpec
+	var roleCfg *commonsv1alpha1.RoleGroupConfigSpec
+	if buildCtx.RoleSpec != nil {
+		roleCfg = buildCtx.RoleSpec.GetConfig()
+		if roleCfg != nil {
+			roleRes = roleCfg.Resources
+		}
+	}
+
 	if cfg.Resources == nil {
 		cfg.Resources = &commonsv1alpha1.ResourcesSpec{}
 	}
+
+	// Storage: group > role > 10Gi.
 	switch {
-	case cfg.Resources.Storage == nil:
+	case cfg.Resources.Storage != nil:
+	case roleRes != nil && roleRes.Storage != nil:
+		cfg.Resources.Storage = roleRes.Storage
+	default:
 		cfg.Resources.Storage = &commonsv1alpha1.StorageResource{Capacity: resource.MustParse(defaultStorageCapacity)}
-	case cfg.Resources.Storage.Capacity.IsZero():
+	}
+	if cfg.Resources.Storage != nil && cfg.Resources.Storage.Capacity.IsZero() {
 		cfg.Resources.Storage.Capacity = resource.MustParse(defaultStorageCapacity)
 	}
+
+	// CPU: group > role > 100m/200m.
+	if cfg.Resources.CPU == nil {
+		if roleRes != nil && roleRes.CPU != nil {
+			cfg.Resources.CPU = roleRes.CPU
+		} else {
+			cfg.Resources.CPU = &commonsv1alpha1.CPUResource{
+				Min: resource.MustParse(defaultCPUMin),
+				Max: resource.MustParse(defaultCPUMax),
+			}
+		}
+	}
+
+	// Memory: group > role > 512Mi (also drives ZK_SERVER_HEAP in getEnvVars).
+	if cfg.Resources.Memory == nil {
+		if roleRes != nil && roleRes.Memory != nil {
+			cfg.Resources.Memory = roleRes.Memory
+		} else {
+			cfg.Resources.Memory = &commonsv1alpha1.MemoryResource{Limit: resource.MustParse(defaultMemoryLimit)}
+		}
+	}
+
+	// Affinity: group > role > default anti-affinity.
+	if cfg.Affinity == nil {
+		if roleCfg != nil && roleCfg.Affinity != nil {
+			cfg.Affinity = roleCfg.Affinity
+		} else if raw := defaultServerAffinity(cr.Name); raw != nil {
+			cfg.Affinity = raw
+		}
+	}
+
+	// Graceful shutdown: group > role > 120s.
+	if cfg.GracefulShutdownTimeout == "" {
+		if roleCfg != nil && roleCfg.GracefulShutdownTimeout != "" {
+			cfg.GracefulShutdownTimeout = roleCfg.GracefulShutdownTimeout
+		} else {
+			cfg.GracefulShutdownTimeout = defaultGracefulShutdown
+		}
+	}
+}
+
+// defaultServerAffinity returns a preferred pod anti-affinity that biases the scheduler to place
+// each server pod on a distinct node, keyed on the framework's instance/component labels (which
+// the pods carry). Marshaling a fixed struct cannot realistically fail, so a marshal error yields
+// no affinity rather than a hard error.
+func defaultServerAffinity(clusterName string) *runtime.RawExtension {
+	affinity := &corev1.Affinity{
+		PodAntiAffinity: &corev1.PodAntiAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{{
+				Weight: antiAffinityWeight,
+				PodAffinityTerm: corev1.PodAffinityTerm{
+					LabelSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"app.kubernetes.io/instance":  clusterName,
+							"app.kubernetes.io/component": serverRoleName,
+						},
+					},
+					TopologyKey: corev1.LabelHostname,
+				},
+			}},
+		},
+	}
+	raw, err := json.Marshal(affinity)
+	if err != nil {
+		return nil
+	}
+	return &runtime.RawExtension{Raw: raw}
 }
 
 // customizeStatefulSet applies Zookeeper specifics to the StatefulSet built by the base
