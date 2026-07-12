@@ -7,7 +7,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.28.3
 	github.com/onsi/gomega v1.40.0
 	github.com/samuel/go-zookeeper v0.0.0-20201211165307-7117e9ea2414
-	github.com/zncdatadev/operator-go v0.12.7-0.20260709153028-09947846e1c1
+	github.com/zncdatadev/operator-go v0.12.7-0.20260712135658-966aad8e7c7e
 	k8s.io/api v0.35.4
 	k8s.io/apimachinery v0.35.4
 	k8s.io/client-go v0.35.4
