@@ -143,6 +143,32 @@ var _ = Describe("ServerStatefulSet", func() {
 			Expect(heap).To(Equal("410"))
 		})
 
+		It("applies the 120s product default even when the CRD injected the platform grace at role level", func() {
+			// The base-operator-go CRD auto-injects gracefulShutdownTimeout="30s" into
+			// servers.config; that platform default must not suppress ZooKeeper's 120s default.
+			h := &ZkRoleGroupHandler{}
+			cr := &zkv1alpha1.ZookeeperCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-zk"}}
+			buildCtx := &reconciler.RoleGroupBuildContext{
+				RoleSpec: &commonsv1alpha1.RoleSpec{
+					Config: &commonsv1alpha1.RoleGroupConfigSpec{GracefulShutdownTimeout: "30s"},
+				},
+			}
+			h.ensureServerConfigDefaults(cr, buildCtx)
+			Expect(buildCtx.RoleGroupSpec.Config.GracefulShutdownTimeout).To(Equal("120s"))
+		})
+
+		It("honors an explicit non-default graceful shutdown at the role level", func() {
+			h := &ZkRoleGroupHandler{}
+			cr := &zkv1alpha1.ZookeeperCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-zk"}}
+			buildCtx := &reconciler.RoleGroupBuildContext{
+				RoleSpec: &commonsv1alpha1.RoleSpec{
+					Config: &commonsv1alpha1.RoleGroupConfigSpec{GracefulShutdownTimeout: "90s"},
+				},
+			}
+			h.ensureServerConfigDefaults(cr, buildCtx)
+			Expect(buildCtx.RoleGroupSpec.Config.GracefulShutdownTimeout).To(Equal("90s"))
+		})
+
 		It("folds role-level resources into the group when the group omits them", func() {
 			h := &ZkRoleGroupHandler{}
 			cr := &zkv1alpha1.ZookeeperCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-zk"}}

@@ -32,6 +32,10 @@ const (
 	defaultCPUMax           = "200m"
 	defaultMemoryLimit      = "512Mi"
 	defaultGracefulShutdown = "120s"
+	// frameworkGraceDefault is the platform gracefulShutdownTimeout the base-operator-go CRD
+	// injects (commons RoleGroupConfigSpec kubebuilder default); ZooKeeper overrides it with its
+	// own longer product default.
+	frameworkGraceDefault = "30s"
 	// antiAffinityWeight biases (does not force) the scheduler to spread ensemble members across
 	// nodes, so a single node failure cannot take down the quorum.
 	antiAffinityWeight = 70
@@ -105,14 +109,25 @@ func (h *ZkRoleGroupHandler) ensureServerConfigDefaults(cr *zkv1alpha1.Zookeeper
 		}
 	}
 
-	// Graceful shutdown: group > role > 120s.
-	if cfg.GracefulShutdownTimeout == "" {
-		if roleCfg != nil && roleCfg.GracefulShutdownTimeout != "" {
+	// Graceful shutdown: group > role > 120s. The framework CRD defaults gracefulShutdownTimeout
+	// to the platform value "30s" and the API server auto-injects it into config even when the
+	// user omits the block, so a literal "30s" cannot be distinguished from "unset" — treat it as
+	// unset so ZooKeeper's longer product default applies, while any other explicit value (at the
+	// group or role level) is honored.
+	if isUnsetGrace(cfg.GracefulShutdownTimeout) {
+		switch {
+		case roleCfg != nil && !isUnsetGrace(roleCfg.GracefulShutdownTimeout):
 			cfg.GracefulShutdownTimeout = roleCfg.GracefulShutdownTimeout
-		} else {
+		default:
 			cfg.GracefulShutdownTimeout = defaultGracefulShutdown
 		}
 	}
+}
+
+// isUnsetGrace reports whether a gracefulShutdownTimeout should be treated as not meaningfully
+// configured: either empty or the framework CRD's auto-injected platform default (frameworkGraceDefault).
+func isUnsetGrace(v string) bool {
+	return v == "" || v == frameworkGraceDefault
 }
 
 // defaultServerAffinity returns a preferred pod anti-affinity that biases the scheduler to place
