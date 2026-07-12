@@ -110,7 +110,6 @@ func (h *ZkRoleGroupHandler) BuildResources(
 	}
 	secretProvisioner := h.buildSecretProvisioner(zkSecurity)
 	image := h.resolveImage(cr)
-	replicas := buildCtx.RoleGroupSpec.GetReplicas()
 
 	// Configure the per-CR base inputs.
 	h.Image = image
@@ -123,7 +122,9 @@ func (h *ZkRoleGroupHandler) BuildResources(
 	// Register the containers that the SidecarManager will inject (myid init container +
 	// product image on Vector). This must happen before base.BuildResources(), which runs
 	// SidecarManager.InjectAll() internally.
-	if err := h.registerServerContainers(buildCtx, image, resolveMinServerID(cr)); err != nil {
+	// The prepare init container writes each pod's myid as (base + ordinal); the base is this
+	// role group's non-overlapping myid start, so myids stay unique across the whole ensemble.
+	if err := h.registerServerContainers(buildCtx, image, serverGroupBaseIDs(cr)[buildCtx.RoleGroupName]); err != nil {
 		return nil, err
 	}
 
@@ -148,7 +149,7 @@ func (h *ZkRoleGroupHandler) BuildResources(
 
 	// Replace the ConfigMap with computed Zookeeper config (zoo.cfg, security.properties,
 	// logback.xml, vector.yaml). Reuse the framework labels base put on the StatefulSet.
-	cm, err := h.buildConfigMap(cr, buildCtx, res.StatefulSet.Labels, zkSecurity, secretProvisioner, replicas)
+	cm, err := h.buildConfigMap(cr, buildCtx, res.StatefulSet.Labels, zkSecurity, secretProvisioner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build configmap: %w", err)
 	}

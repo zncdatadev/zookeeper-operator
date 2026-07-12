@@ -1,0 +1,52 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: smoke-multi-rolegroup
+spec:
+  bindings:
+    - name: zookeeper_version
+      value: ($values.product_version)
+  steps:
+  - name: install a two-role-group cluster
+    try:
+    - apply:
+        file: zk.yaml
+    # Both StatefulSets becoming ready already requires the members to agree on one quorum.
+    - assert:
+        file: zk-assert.yaml
+  - name: verify the server list spans both groups with unique myids
+    try:
+    - script:
+        env:
+          - name: NAMESPACE
+            value: ($namespace)
+        content: |
+          #!/bin/bash
+          set -euo pipefail
+          # zoo.cfg on a default-group pod must list all three members, including the secondary
+          # group's pod (server.3), not just its own group.
+          cfg=$(kubectl -n "$NAMESPACE" exec test-zk-server-default-0 -c zookeeper -- cat /kubedoop/config/zoo.cfg)
+          echo "$cfg" | grep -qE '^server\.1=.*test-zk-server-default-0\.'
+          echo "$cfg" | grep -qE '^server\.2=.*test-zk-server-default-1\.'
+          echo "$cfg" | grep -qE '^server\.3=.*test-zk-server-secondary-0\.'
+          # myids are unique across groups: default -> 1,2 ; secondary -> 3.
+          [ "$(kubectl -n "$NAMESPACE" exec test-zk-server-default-0   -c zookeeper -- cat /kubedoop/data/myid)" = "1" ]
+          [ "$(kubectl -n "$NAMESPACE" exec test-zk-server-default-1   -c zookeeper -- cat /kubedoop/data/myid)" = "2" ]
+          [ "$(kubectl -n "$NAMESPACE" exec test-zk-server-secondary-0 -c zookeeper -- cat /kubedoop/data/myid)" = "3" ]
+  - name: verify the two groups share one ensemble (cross-group read)
+    try:
+    - script:
+        env:
+          - name: NAMESPACE
+            value: ($namespace)
+        content: |
+          #!/bin/bash
+          set -euo pipefail
+          # Write through the default group...
+          kubectl -n "$NAMESPACE" exec test-zk-server-default-0 -c zookeeper -- \
+            bin/zkCli.sh -server 127.0.0.1:2181 create /multi-rg-probe hello
+          # ...and read it back through the secondary group. If they were separate quorums the
+          # node would not exist here.
+          out=$(kubectl -n "$NAMESPACE" exec test-zk-server-secondary-0 -c zookeeper -- \
+            bin/zkCli.sh -server 127.0.0.1:2181 get /multi-rg-probe)
+          echo "$out" | grep -q "hello"
