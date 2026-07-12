@@ -14,9 +14,10 @@ echo "Start TLS testing..."
 ############################################################################
 # Test the plaintext unsecured connection
 ############################################################################
-# Initialize retry counter
+# Initialize retry counter. zkCli opens a fresh session (with a TLS handshake on the unified port)
+# per call, which can take a while under load, so allow several attempts before giving up.
 retry_count=0
-max_retries=2
+max_retries=8
 retry_delay=5
 
 # Try connection with retries
@@ -52,8 +53,17 @@ export CLIENT_JVMFLAGS="
 -Dzookeeper.ssl.trustStore.location=/kubedoop/mount/server-tls/truststore.p12
 -Dzookeeper.ssl.trustStore.password=${CLIENT_STORE_SECRET}"
 
-output=$(/kubedoop/zookeeper/bin/zkCli.sh -server "${SERVER}" ls / 2>&1)
-if [ $? -ne 0 ]; then
+secure_ok=false
+for attempt in $(seq 1 "$max_retries"); do
+  output=$(/kubedoop/zookeeper/bin/zkCli.sh -server "${SERVER}" ls / 2>&1)
+  if [ $? -eq 0 ]; then
+    secure_ok=true
+    break
+  fi
+  echo "[WARN] Secure connection attempt ${attempt}/${max_retries} failed; retrying in ${retry_delay}s..."
+  sleep $retry_delay
+done
+if [ "$secure_ok" != "true" ]; then
   echo "[ERROR] Could not establish secure connection using client certificates!"
   echo "Command output:"
   echo "----------------------------------------"
