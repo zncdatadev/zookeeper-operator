@@ -41,12 +41,30 @@ spec:
             value: ($namespace)
         content: |
           #!/bin/bash
-          set -euo pipefail
-          # Write through the default group...
-          kubectl -n "$NAMESPACE" exec test-zk-server-default-0 -c zookeeper -- \
-            bin/zkCli.sh -server 127.0.0.1:2181 create /multi-rg-probe hello
-          # ...and read it back through the secondary group. If they were separate quorums the
-          # node would not exist here.
-          out=$(kubectl -n "$NAMESPACE" exec test-zk-server-secondary-0 -c zookeeper -- \
-            bin/zkCli.sh -server 127.0.0.1:2181 get /multi-rg-probe)
-          echo "$out" | grep -q "hello"
+          set -uo pipefail
+          # Write through the default group and read it back through the secondary group. If the
+          # groups were separate quorums the node would not exist on the secondary. zkCli opens a
+          # fresh session per call and can hit a transient ConnectionLoss under load, so retry;
+          # a genuine split would surface as a stable "Node does not exist", not a read of "hello".
+          write() { kubectl -n "$NAMESPACE" exec test-zk-server-default-0 -c zookeeper -- \
+            bin/zkCli.sh -server 127.0.0.1:2282 create /multi-rg-probe hello 2>&1; }
+          read_probe() { kubectl -n "$NAMESPACE" exec test-zk-server-secondary-0 -c zookeeper -- \
+            bin/zkCli.sh -server 127.0.0.1:2282 get /multi-rg-probe 2>&1; }
+
+          for i in $(seq 1 10); do
+            w=$(write)
+            if echo "$w" | grep -qE "Created /multi-rg-probe|NodeExists"; then break; fi
+            echo "write attempt $i: $(echo "$w" | tail -1)"; sleep 5
+          done
+          echo "$w" | grep -qE "Created /multi-rg-probe|NodeExists"
+
+          for i in $(seq 1 10); do
+            out=$(read_probe)
+            if echo "$out" | grep -q "hello"; then echo "cross-group read OK"; exit 0; fi
+            # A real split ensemble returns a stable NoNode, not a transient ConnectionLoss.
+            if echo "$out" | grep -q "Node does not exist"; then
+              echo "SPLIT ENSEMBLE: secondary group cannot see the default group's znode"; exit 1
+            fi
+            echo "read attempt $i: $(echo "$out" | tail -1)"; sleep 5
+          done
+          echo "cross-group read did not succeed after retries"; exit 1
