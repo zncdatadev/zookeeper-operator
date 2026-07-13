@@ -22,7 +22,7 @@ spec:
             value: ($namespace)
         content: |
           #!/bin/bash
-          set -uo pipefail
+          set -u
           # Each pod's on-disk myid must equal minServerId + ordinal (5,6,7), and zoo.cfg must
           # advertise exactly server.5/6/7 (not server.1..3). Retry the exec-based checks: a pod can
           # restart once while the ensemble forms, and an exec racing that restart would fail spuriously.

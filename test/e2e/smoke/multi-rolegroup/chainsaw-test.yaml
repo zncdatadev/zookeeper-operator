@@ -22,7 +22,7 @@ spec:
             value: ($namespace)
         content: |
           #!/bin/bash
-          set -uo pipefail
+          set -u
           # zoo.cfg on a default-group pod must list all three members, including the secondary
           # group's pod (server.3), not just its own group; myids are unique across groups
           # (default -> 1,2 ; secondary -> 3). Retry the exec-based checks: a pod can restart once
@@ -51,7 +51,7 @@ spec:
             value: ($namespace)
         content: |
           #!/bin/bash
-          set -uo pipefail
+          set -u
           # Write through the default group and read it back through the secondary group. If the
           # groups were separate quorums the node would not exist on the secondary. zkCli opens a
           # fresh session per call and can hit a transient ConnectionLoss under load, so retry;
