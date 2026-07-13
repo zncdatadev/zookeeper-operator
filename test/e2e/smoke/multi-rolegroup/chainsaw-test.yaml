@@ -22,17 +22,27 @@ spec:
             value: ($namespace)
         content: |
           #!/bin/bash
-          set -euo pipefail
+          set -uo pipefail
           # zoo.cfg on a default-group pod must list all three members, including the secondary
-          # group's pod (server.3), not just its own group.
-          cfg=$(kubectl -n "$NAMESPACE" exec test-zk-server-default-0 -c zookeeper -- cat /kubedoop/config/zoo.cfg)
-          echo "$cfg" | grep -qE '^server\.1=.*test-zk-server-default-0\.'
-          echo "$cfg" | grep -qE '^server\.2=.*test-zk-server-default-1\.'
-          echo "$cfg" | grep -qE '^server\.3=.*test-zk-server-secondary-0\.'
-          # myids are unique across groups: default -> 1,2 ; secondary -> 3.
-          [ "$(kubectl -n "$NAMESPACE" exec test-zk-server-default-0   -c zookeeper -- cat /kubedoop/data/myid)" = "1" ]
-          [ "$(kubectl -n "$NAMESPACE" exec test-zk-server-default-1   -c zookeeper -- cat /kubedoop/data/myid)" = "2" ]
-          [ "$(kubectl -n "$NAMESPACE" exec test-zk-server-secondary-0 -c zookeeper -- cat /kubedoop/data/myid)" = "3" ]
+          # group's pod (server.3), not just its own group; myids are unique across groups
+          # (default -> 1,2 ; secondary -> 3). Retry the exec-based checks: a pod can restart once
+          # while the ensemble forms, and an exec racing that restart would otherwise fail spuriously.
+          myid() { kubectl -n "$NAMESPACE" exec "$1" -c zookeeper -- cat /kubedoop/data/myid 2>/dev/null; }
+          check() {
+            cfg=$(kubectl -n "$NAMESPACE" exec test-zk-server-default-0 -c zookeeper -- cat /kubedoop/config/zoo.cfg 2>/dev/null) || return 1
+            echo "$cfg" | grep -qE '^server\.1=.*test-zk-server-default-0\.' || return 1
+            echo "$cfg" | grep -qE '^server\.2=.*test-zk-server-default-1\.' || return 1
+            echo "$cfg" | grep -qE '^server\.3=.*test-zk-server-secondary-0\.' || return 1
+            [ "$(myid test-zk-server-default-0)"   = "1" ] || return 1
+            [ "$(myid test-zk-server-default-1)"   = "2" ] || return 1
+            [ "$(myid test-zk-server-secondary-0)" = "3" ] || return 1
+            return 0
+          }
+          for i in $(seq 1 12); do
+            if check; then echo "server list + myids OK"; exit 0; fi
+            echo "attempt $i: not ready yet"; sleep 5
+          done
+          echo "server list / myid verification failed after retries"; exit 1
   - name: verify the two groups share one ensemble (cross-group read)
     try:
     - script:
