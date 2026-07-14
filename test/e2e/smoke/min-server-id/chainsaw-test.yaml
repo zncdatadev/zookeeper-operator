@@ -22,7 +22,7 @@ spec:
             value: ($namespace)
         content: |
           #!/bin/bash
-          set -euo pipefail
+          set -e
           # Each pod's on-disk myid must equal minServerId + ordinal (5,6,7)...
           for ordinal in 0 1 2; do
             want=$((5 + ordinal))

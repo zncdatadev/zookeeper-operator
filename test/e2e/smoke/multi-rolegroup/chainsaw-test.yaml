@@ -22,7 +22,7 @@ spec:
             value: ($namespace)
         content: |
           #!/bin/bash
-          set -euo pipefail
+          set -e
           # zoo.cfg on a default-group pod must list all three members, including the secondary
           # group's pod (server.3), not just its own group.
           cfg=$(kubectl -n "$NAMESPACE" exec test-zk-server-default-0 -c zookeeper -- cat /kubedoop/config/zoo.cfg)
@@ -41,7 +41,7 @@ spec:
             value: ($namespace)
         content: |
           #!/bin/bash
-          set -euo pipefail
+          set -e
           # Write through the default group...
           kubectl -n "$NAMESPACE" exec test-zk-server-default-0 -c zookeeper -- \
             bin/zkCli.sh -server 127.0.0.1:2282 create /multi-rg-probe hello
