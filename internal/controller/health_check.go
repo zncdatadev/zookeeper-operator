@@ -195,20 +195,12 @@ func parseMode(output string) string {
 
 // getExpectedReplicas returns the expected number of server replicas from the CR.
 func getExpectedReplicas(cr *zkv1alpha1.ZookeeperCluster) int {
-	if cr.Spec.Servers == nil || cr.Spec.Servers.RoleGroups == nil {
-		return 1
-	}
-	total := 0
-	for _, rg := range cr.Spec.Servers.RoleGroups {
-		replicas := rg.Replicas
-		if replicas > 0 {
-			total += int(replicas)
-		} else {
-			total++
-		}
-	}
+	// serverEnsembleSize is the single source of truth for the desired member count across role
+	// groups (default 1 per group when replicas is unset), so the quorum math here stays in step
+	// with the server.N list generated for zoo.cfg.
+	total := serverEnsembleSize(cr)
 	if total == 0 {
 		return 1
 	}
-	return total
+	return int(total)
 }

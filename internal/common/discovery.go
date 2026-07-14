@@ -69,7 +69,9 @@ func CreateDiscoveryConfigMap(
 			Name:      cmName,
 			Namespace: znodeInfo.Namespace,
 			Labels: map[string]string{
-				"app.kubernetes.io/name":       strings.ToLower(zkCluster.Name),
+				// Recommended-label semantics: "name" is the product, "instance" the cluster.
+				"app.kubernetes.io/name":       zkv1alpha1.DefaultProductName,
+				"app.kubernetes.io/instance":   strings.ToLower(zkCluster.Name),
 				"app.kubernetes.io/managed-by": "zookeeper-operator",
 			},
 		},

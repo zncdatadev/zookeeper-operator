@@ -22,7 +22,7 @@ spec:
             value: ($namespace)
         content: |
           #!/bin/bash
-          set -eu
+          set -euo pipefail
           sts=$(kubectl -n "$NAMESPACE" get sts test-zk-server-default -o yaml)
           zk=$(echo "$sts" | yq '.spec.template.spec.containers[] | select(.name == "zookeeper")')
           # CPU/memory requests+limits are defaulted (100m/200m, 512Mi).
