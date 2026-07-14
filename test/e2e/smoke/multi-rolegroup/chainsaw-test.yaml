@@ -44,9 +44,9 @@ spec:
           set -euo pipefail
           # Write through the default group...
           kubectl -n "$NAMESPACE" exec test-zk-server-default-0 -c zookeeper -- \
-            bin/zkCli.sh -server 127.0.0.1:2181 create /multi-rg-probe hello
+            bin/zkCli.sh -server 127.0.0.1:2282 create /multi-rg-probe hello
           # ...and read it back through the secondary group. If they were separate quorums the
           # node would not exist here.
           out=$(kubectl -n "$NAMESPACE" exec test-zk-server-secondary-0 -c zookeeper -- \
-            bin/zkCli.sh -server 127.0.0.1:2181 get /multi-rg-probe)
+            bin/zkCli.sh -server 127.0.0.1:2282 get /multi-rg-probe)
           echo "$out" | grep -q "hello"

@@ -3,7 +3,10 @@
 
 NAMESPACE=$1
 
-SERVER="test-zk-server-default-1.test-zk-server-default.${NAMESPACE}.svc.cluster.local:2282"
+# Per-pod DNS is served by the StatefulSet's governing headless Service, which the
+# base-operator-go framework names "<resource>-headless" (the discovery ConfigMap advertises the
+# same FQDN). Pre-framework this Service was named "<resource>" without the suffix.
+SERVER="test-zk-server-default-1.test-zk-server-default-headless.${NAMESPACE}.svc.cluster.local:2282"
 
 # just to be safe...
 unset QUORUM_STORE_SECRET
