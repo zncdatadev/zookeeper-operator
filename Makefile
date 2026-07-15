@@ -306,7 +306,10 @@ CHAINSAW_KUBECONFIG ?= .kubeconfig
 # the gated init-container restartPolicy but keeps the readinessProbe, so pod validation fails
 # with "readinessProbe: Forbidden: may not be set for init containers" and the StatefulSet
 # creates zero pods. Do not lower this below 1.29.
-KIND_K8S_VERSION ?= 1.35.0
+#
+# Pinned to the newest published kindest/node image (see the kind releases link below); bump
+# it as new k8s releases ship, keeping 1.29 as the hard floor.
+KIND_K8S_VERSION ?= 1.36.1
 # The kind node image can found in https://github.com/kubernetes-sigs/kind/releases.
 KIND_IMAGE ?= kindest/node:v${KIND_K8S_VERSION}
 # Define operator dependencies to be installed before running chainsaw tests.
