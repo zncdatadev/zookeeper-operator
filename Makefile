@@ -299,7 +299,14 @@ CHAINSAW_KUBECONFIG ?= .kubeconfig
 # When run `kind create --image kindest/node:v${KIND_K8S_VERSION}`, the node image version of k8s will be used to create the kind cluster,
 # and the target kubeconfig file will be named as `$(CHAINSAW_KUBECONFIG)` (default: `.kubeconfig`).
 # So if you want to use the target cluster, run `export KUBECONFIG=$(CHAINSAW_KUBECONFIG)` (default: `.kubeconfig`).
-KIND_K8S_VERSION ?= 1.26.15
+#
+# Minimum k8s 1.29: base-operator-go runs the Vector log agent as a native sidecar (an init
+# container with restartPolicy=Always plus a readinessProbe). The SidecarContainers feature
+# gate is only on by default from 1.29 onward; on older nodes (e.g. 1.26) the API server drops
+# the gated init-container restartPolicy but keeps the readinessProbe, so pod validation fails
+# with "readinessProbe: Forbidden: may not be set for init containers" and the StatefulSet
+# creates zero pods. Do not lower this below 1.29.
+KIND_K8S_VERSION ?= 1.35.0
 # The kind node image can found in https://github.com/kubernetes-sigs/kind/releases.
 KIND_IMAGE ?= kindest/node:v${KIND_K8S_VERSION}
 # Define operator dependencies to be installed before running chainsaw tests.
