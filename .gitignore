@@ -58,6 +58,3 @@ target
 
 # ai tools
 .omc/
-
-# generated chainsaw values
-test/e2e/.values.yaml
