@@ -10,7 +10,6 @@ rules:
   - ""
   resources:
   - configmaps
-  - secrets
   - serviceaccounts
   - services
   verbs:
@@ -48,6 +47,14 @@ rules:
   - update
   - watch
 - apiGroups:
+  - authentication.kubedoop.dev
+  resources:
+  - authenticationclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - discovery.k8s.io
   resources:
   - endpointslices
@@ -70,15 +77,10 @@ rules:
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
-  - clusterroles
   - rolebindings
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - zookeeper.kubedoop.dev
