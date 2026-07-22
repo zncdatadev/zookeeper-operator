@@ -35,9 +35,9 @@ spec:
               value: ($namespace)
           content: |
             #!/bin/bash
-            kubectl -n $NAMESPACE get sts test-zk-server-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "server") | .env[] | select (.name == "COMMON_VAR" and .value == "group-value")'
-            kubectl -n $NAMESPACE get sts test-zk-server-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "server") | .env[] | select (.name == "GROUP_VAR" and .value == "group-value")'
-            kubectl -n $NAMESPACE get sts test-zk-server-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "server") | .env[] | select (.name == "ROLE_VAR" and .value == "role-value")'
+            kubectl -n $NAMESPACE get sts test-zk-server-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "zookeeper") | .env[] | select (.name == "COMMON_VAR" and .value == "group-value")'
+            kubectl -n $NAMESPACE get sts test-zk-server-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "zookeeper") | .env[] | select (.name == "GROUP_VAR" and .value == "group-value")'
+            kubectl -n $NAMESPACE get sts test-zk-server-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "zookeeper") | .env[] | select (.name == "ROLE_VAR" and .value == "role-value")'
   - name: test config overrides
     try:
       - script:
@@ -59,11 +59,11 @@ spec:
               value: ($namespace)
           content: |
             #!/bin/bash
-            kubectl -n $NAMESPACE cp ./test_tls.sh test-zk-server-default-0:/tmp --container='server'
+            kubectl -n $NAMESPACE cp ./test_tls.sh test-zk-server-default-0:/tmp --container='zookeeper'
       - script:
           bindings:
             - name: NAMESPACE
               value: ($namespace)
           content: |
             #!/bin/bash
-            kubectl -n $NAMESPACE exec test-zk-server-default-0 -c server -- /tmp/test_tls.sh $NAMESPACE
+            kubectl -n $NAMESPACE exec test-zk-server-default-0 -c zookeeper -- /tmp/test_tls.sh $NAMESPACE

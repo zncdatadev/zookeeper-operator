@@ -217,7 +217,7 @@ ENVTEST_K8S_VERSION ?= $(shell v='$(call gomodver,k8s.io/api)'; \
   [ -n "$$v" ] || { echo "Set ENVTEST_K8S_VERSION manually (k8s.io/api replace has no tag)" >&2; exit 1; }; \
   printf '%s\n' "$$v" | sed -E 's/^v?[0-9]+\.([0-9]+).*/1.\1/')
 
-GOLANGCI_LINT_VERSION ?= v2.8.0
+GOLANGCI_LINT_VERSION ?= v2.12.2
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -299,7 +299,17 @@ CHAINSAW_KUBECONFIG ?= .kubeconfig
 # When run `kind create --image kindest/node:v${KIND_K8S_VERSION}`, the node image version of k8s will be used to create the kind cluster,
 # and the target kubeconfig file will be named as `$(CHAINSAW_KUBECONFIG)` (default: `.kubeconfig`).
 # So if you want to use the target cluster, run `export KUBECONFIG=$(CHAINSAW_KUBECONFIG)` (default: `.kubeconfig`).
-KIND_K8S_VERSION ?= 1.26.15
+#
+# Minimum k8s 1.29: base-operator-go runs the Vector log agent as a native sidecar (an init
+# container with restartPolicy=Always plus a readinessProbe). The SidecarContainers feature
+# gate is only on by default from 1.29 onward; on older nodes (e.g. 1.26) the API server drops
+# the gated init-container restartPolicy but keeps the readinessProbe, so pod validation fails
+# with "readinessProbe: Forbidden: may not be set for init containers" and the StatefulSet
+# creates zero pods. Do not lower this below 1.29.
+#
+# Pinned to the newest published kindest/node image (see the kind releases link below); bump
+# it as new k8s releases ship, keeping 1.29 as the hard floor.
+KIND_K8S_VERSION ?= 1.36.1
 # The kind node image can found in https://github.com/kubernetes-sigs/kind/releases.
 KIND_IMAGE ?= kindest/node:v${KIND_K8S_VERSION}
 # Define operator dependencies to be installed before running chainsaw tests.

@@ -3,28 +3,18 @@ package common
 import (
 	"fmt"
 	"strings"
-
-	"github.com/zncdatadev/operator-go/pkg/reconciler"
 )
 
 const (
+	// ZkServerContainerName is the name of the main Zookeeper container. It is kept as
+	// "zookeeper" for backward compatibility with the pre-framework layout (the role name
+	// is "server" and is used for the app.kubernetes.io/component label, but the container
+	// name intentionally stays "zookeeper").
 	ZkServerContainerName = "zookeeper"
 )
 
 func ClusterServiceName(instanceName string) string {
 	return instanceName
-}
-
-func StatefulsetName(roleGroupInfo *reconciler.RoleGroupInfo) string {
-	return roleGroupInfo.GetFullName()
-}
-
-func RoleGroupConfigMapName(roleGroupInfo *reconciler.RoleGroupInfo) string {
-	return roleGroupInfo.GetFullName()
-}
-
-func RoleGroupServiceName(roleGroupInfo *reconciler.RoleGroupInfo) string {
-	return roleGroupInfo.GetFullName()
 }
 
 func PodFQDN(podName, svcName, namespace string) string {

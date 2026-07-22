@@ -26,7 +26,11 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	opcommon "github.com/zncdatadev/operator-go/pkg/common"
+	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	zookeeperv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
+	"github.com/zncdatadev/zookeeper-operator/internal/controller"
+	"github.com/zncdatadev/zookeeper-operator/internal/znodecontroller"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -37,9 +41,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"github.com/zncdatadev/zookeeper-operator/internal/clustercontroller"
 	"github.com/zncdatadev/zookeeper-operator/internal/util/version"
-	"github.com/zncdatadev/zookeeper-operator/internal/znodecontroller"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -50,7 +52,6 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 	utilruntime.Must(zookeeperv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
@@ -97,12 +98,6 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	// if the enable-http2 flag is false (the default), http/2 should be disabled
-	// due to its vulnerabilities. More specifically, disabling http/2 will
-	// prevent from being vulnerable to the HTTP/2 Stream Cancellation and
-	// Rapid Reset CVEs. For more information see:
-	// - https://github.com/advisories/GHSA-qppj-fm5r-hxr3
-	// - https://github.com/advisories/GHSA-4374-p667-p6c8
 	disableHTTP2 := func(c *tls.Config) {
 		setupLog.Info("disabling http/2")
 		c.NextProtos = []string{"http/1.1"}
@@ -112,7 +107,6 @@ func main() {
 		tlsOpts = append(tlsOpts, disableHTTP2)
 	}
 
-	// Initial webhook TLS options
 	webhookTLSOpts := tlsOpts
 	webhookServerOptions := webhook.Options{
 		TLSOpts: webhookTLSOpts,
@@ -121,7 +115,6 @@ func main() {
 	if len(webhookCertPath) > 0 {
 		setupLog.Info("Initializing webhook certificate watcher using provided certificates",
 			"webhook-cert-path", webhookCertPath, "webhook-cert-name", webhookCertName, "webhook-cert-key", webhookCertKey)
-
 		webhookServerOptions.CertDir = webhookCertPath
 		webhookServerOptions.CertName = webhookCertName
 		webhookServerOptions.KeyName = webhookCertKey
@@ -129,10 +122,6 @@ func main() {
 
 	webhookServer := webhook.NewServer(webhookServerOptions)
 
-	// Metrics endpoint is enabled in 'config/default/kustomization.yaml'. The Metrics options configure the server.
-	// More info:
-	// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.1/pkg/metrics/server
-	// - https://book.kubebuilder.io/reference/metrics.html
 	metricsServerOptions := metricsserver.Options{
 		BindAddress:   metricsAddr,
 		SecureServing: secureMetrics,
@@ -140,25 +129,12 @@ func main() {
 	}
 
 	if secureMetrics {
-		// FilterProvider is used to protect the metrics endpoint with authn/authz.
-		// These configurations ensure that only authorized users and service accounts
-		// can access the metrics endpoint. The RBAC are configured in 'config/rbac/kustomization.yaml'. More info:
-		// https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.22.4/pkg/metrics/filters#WithAuthenticationAndAuthorization
 		metricsServerOptions.FilterProvider = filters.WithAuthenticationAndAuthorization
 	}
 
-	// If the certificate is not specified, controller-runtime will automatically
-	// generate self-signed certificates for the metrics server. While convenient for development and testing,
-	// this setup is not recommended for production.
-	//
-	// TODO(user): If you enable certManager, uncomment the following lines:
-	// - [METRICS-WITH-CERTS] at config/default/kustomization.yaml to generate and use certificates
-	// managed by cert-manager for the metrics server.
-	// - [PROMETHEUS-WITH-CERTS] at config/prometheus/kustomization.yaml for TLS certification.
 	if len(metricsCertPath) > 0 {
 		setupLog.Info("Initializing metrics certificate watcher using provided certificates",
 			"metrics-cert-path", metricsCertPath, "metrics-cert-name", metricsCertName, "metrics-cert-key", metricsCertKey)
-
 		metricsServerOptions.CertDir = metricsCertPath
 		metricsServerOptions.CertName = metricsCertName
 		metricsServerOptions.KeyName = metricsCertKey
@@ -171,32 +147,50 @@ func main() {
 		LeaderElection:         enableLeaderElection,
 		WebhookServer:          webhookServer,
 		LeaderElectionID:       "85bf7652.kubedoop.dev",
-		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
-		// when the Manager ends. This requires the binary to immediately end when the
-		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
-		// speeds up voluntary leader transitions as the new leader don't have to wait
-		// LeaseDuration time first.
-		//
-		// In the default scaffold provided, the program ends immediately after
-		// the manager stops, so would be fine to enable this option. However,
-		// if you are doing or is intended to do any operation such as perform cleanups
-		// after the manager stops then its usage might be unsafe.
-		// LeaderElectionReleaseOnCancel: true,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
-	if err = (&clustercontroller.ZookeeperClusterReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Log:    setupLog,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ZookeeperCluster")
+	// Setup ZookeeperCluster controller using GenericReconciler
+	zkHandler := controller.NewZkRoleGroupHandler(mgr.GetScheme())
+
+	// Register cluster-scope extension that creates the cluster-wide client Service.
+	// The service is named after the cluster and is required by the ZookeeperZnode
+	// controller (which connects via the cluster service DNS) and by external-unstable
+	// (NodePort) discovery (which reads the NodePort from this service).
+	opcommon.GetExtensionRegistry().RegisterClusterExtension(controller.NewClusterServiceExtension(mgr.GetScheme()))
+
+	podExec, err := controller.NewPodExec(mgr.GetConfig())
+	if err != nil {
+		setupLog.Error(err, "unable to create pod exec client")
 		os.Exit(1)
 	}
-	if err = (&znodecontroller.ZookeeperZnodeReconciler{
+
+	zkReconciler, err := reconciler.NewGenericReconciler(
+		&reconciler.GenericReconcilerConfig[*zookeeperv1alpha1.ZookeeperCluster]{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			// operator-go's Recorder field is the (deprecated) record.EventRecorder; the
+			// replacement GetEventRecorder returns the incompatible events.EventRecorder.
+			Recorder:           mgr.GetEventRecorderFor("zookeeper-cluster-controller"), //nolint:staticcheck
+			RoleGroupHandler:   zkHandler,
+			ServiceHealthCheck: controller.NewZkServiceHealthCheck(podExec),
+			ServiceAccountName: zookeeperv1alpha1.DefaultProductName,
+			Prototype:          &zookeeperv1alpha1.ZookeeperCluster{},
+		})
+	if err != nil {
+		setupLog.Error(err, "unable to create GenericReconciler", "controller", "ZookeeperCluster")
+		os.Exit(1)
+	}
+	if err := zkReconciler.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to setup controller", "controller", "ZookeeperCluster")
+		os.Exit(1)
+	}
+
+	// Setup ZookeeperZnode controller (custom reconciler, not GenericReconciler)
+	if err := (&znodecontroller.ZookeeperZnodeReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 		Log:    setupLog,

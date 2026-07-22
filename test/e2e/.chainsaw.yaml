@@ -15,3 +15,26 @@ spec:
   failFast: true
   parallel: 1 # use 1 concurrent to test, to voide multiple csi driver conflict
   forceTerminationGracePeriod: 10s
+  # Diagnostics: on any failure, dump the failing namespace's StatefulSets (spec+status),
+  # pods, describe output, events, and the operator log — before cleanup deletes the namespace.
+  # This makes CI failures self-explanatory (e.g. why a StatefulSet reports 0 replicas).
+  catch:
+    - description: dump diagnostics on failure
+      script:
+        env:
+          - name: NAMESPACE
+            value: ($namespace)
+        content: |
+          #!/bin/sh
+          set +e
+          echo "========== StatefulSets (spec+status) =========="
+          kubectl -n "$NAMESPACE" get statefulset -o yaml
+          echo "========== Pods =========="
+          kubectl -n "$NAMESPACE" get pods -o wide
+          echo "========== Describe pods =========="
+          kubectl -n "$NAMESPACE" describe pods
+          echo "========== Events =========="
+          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp
+          echo "========== Operator log =========="
+          kubectl -n zookeeper-operator logs deploy/zookeeper-operator --tail=150 2>/dev/null || \
+            kubectl -n zookeeper-operator-system logs deploy/zookeeper-operator-controller-manager --tail=150 2>/dev/null

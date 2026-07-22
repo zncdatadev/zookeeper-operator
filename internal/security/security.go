@@ -132,3 +132,26 @@ type ZookeeperSecurity struct {
 	quorumSecretClass             string
 	sslStorePassword              string
 }
+
+// ServerSecretClass returns the server TLS secret class name.
+func (z *ZookeeperSecurity) ServerSecretClass() string {
+	return z.serverSecretClass
+}
+
+// QuorumSecretClass returns the quorum TLS secret class name.
+func (z *ZookeeperSecurity) QuorumSecretClass() string {
+	return z.quorumSecretClass
+}
+
+// SSLStorePassword returns the SSL keystore/truststore password.
+func (z *ZookeeperSecurity) SSLStorePassword() string {
+	return z.sslStorePassword
+}
+
+// ClientTLSSecretClass returns the client TLS secret class from resolved AuthenticationClass, or empty string.
+func (z *ZookeeperSecurity) ClientTLSSecretClass() string {
+	if tlsAuthClass := z.resolvedAuthenticationClasses.GetTLSAuthenticationClass(); tlsAuthClass != nil {
+		return tlsAuthClass.Spec.AuthenticationProvider.TLS.ClientCertSecretClass
+	}
+	return ""
+}

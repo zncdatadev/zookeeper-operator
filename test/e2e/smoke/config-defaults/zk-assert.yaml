@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-zk-server-default
+spec:
+  template:
+    spec:
+      # Default graceful-shutdown window (framework would otherwise leave it at k8s' 30s).
+      terminationGracePeriodSeconds: 120
+      # Default preferred pod anti-affinity that spreads ensemble members across nodes.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 70
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+status:
+  availableReplicas: 1
+  replicas: 1

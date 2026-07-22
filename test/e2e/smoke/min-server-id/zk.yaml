@@ -1,0 +1,15 @@
+apiVersion: zookeeper.kubedoop.dev/v1alpha1
+kind: ZookeeperCluster
+metadata:
+  name: test-zk
+spec:
+  image:
+    productVersion: ($values.product_version)
+  clusterConfig:
+    # Non-default myid base: the ensemble must number pods 5,6,7 and the on-disk myid files must
+    # match, otherwise no node's myid maps to a server.N entry and the quorum never forms.
+    minServerId: 5
+  servers:
+    roleGroups:
+      default:
+        replicas: 3
