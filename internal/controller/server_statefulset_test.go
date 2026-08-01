@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -74,7 +75,7 @@ var _ = Describe("ServerStatefulSet", func() {
 				RoleGroupSpec: commonsv1alpha1.RoleGroupSpec{
 					Config: &commonsv1alpha1.RoleGroupConfigSpec{
 						Resources: &commonsv1alpha1.ResourcesSpec{
-							Storage: &commonsv1alpha1.StorageResource{Capacity: resource.MustParse("5Gi")},
+							Storage: &commonsv1alpha1.StorageResource{Capacity: ptr.To(resource.MustParse("5Gi"))},
 						},
 					},
 				},
@@ -93,7 +94,7 @@ var _ = Describe("ServerStatefulSet", func() {
 			Expect(cfg.Resources.CPU.Min.String()).To(Equal("100m"))
 			Expect(cfg.Resources.CPU.Max.String()).To(Equal("200m"))
 			Expect(cfg.Resources.Memory.Limit.String()).To(Equal("512Mi"))
-			Expect(cfg.GracefulShutdownTimeout).To(Equal("120s"))
+			Expect(*cfg.GracefulShutdownTimeout).To(Equal("120s"))
 			Expect(cfg.Affinity).NotTo(BeNil())
 			affinity := &corev1.Affinity{}
 			Expect(json.Unmarshal(cfg.Affinity.Raw, affinity)).To(Succeed())
@@ -112,10 +113,10 @@ var _ = Describe("ServerStatefulSet", func() {
 				RoleGroupSpec: commonsv1alpha1.RoleGroupSpec{
 					Config: &commonsv1alpha1.RoleGroupConfigSpec{
 						Resources: &commonsv1alpha1.ResourcesSpec{
-							CPU:    &commonsv1alpha1.CPUResource{Min: resource.MustParse("500m"), Max: resource.MustParse("1")},
-							Memory: &commonsv1alpha1.MemoryResource{Limit: resource.MustParse("2Gi")},
+							CPU:    &commonsv1alpha1.CPUResource{Min: ptr.To(resource.MustParse("500m")), Max: ptr.To(resource.MustParse("1"))},
+							Memory: &commonsv1alpha1.MemoryResource{Limit: ptr.To(resource.MustParse("2Gi"))},
 						},
-						GracefulShutdownTimeout: "45s",
+						GracefulShutdownTimeout: ptr.To("45s"),
 					},
 				},
 			}
@@ -124,7 +125,7 @@ var _ = Describe("ServerStatefulSet", func() {
 			cfg := buildCtx.RoleGroupSpec.Config
 			Expect(cfg.Resources.CPU.Min.String()).To(Equal("500m"))
 			Expect(cfg.Resources.Memory.Limit.String()).To(Equal("2Gi"))
-			Expect(cfg.GracefulShutdownTimeout).To(Equal("45s"))
+			Expect(*cfg.GracefulShutdownTimeout).To(Equal("45s"))
 		})
 
 		It("drives ZK_SERVER_HEAP from the defaulted memory for a minimal cluster", func() {
@@ -143,18 +144,34 @@ var _ = Describe("ServerStatefulSet", func() {
 			Expect(heap).To(Equal("410"))
 		})
 
-		It("applies the 120s product default even when the CRD injected the platform grace at role level", func() {
-			// The base-operator-go CRD auto-injects gracefulShutdownTimeout="30s" into
-			// servers.config; that platform default must not suppress ZooKeeper's 120s default.
+		It("applies the 120s product default only when graceful shutdown is unset (nil)", func() {
+			// gracefulShutdownTimeout is now a *string, so "unset" is a nil pointer and the CRD no
+			// longer auto-injects the platform "30s". A minimal cluster leaves it nil at every
+			// level, so ZooKeeper's longer 120s product default applies.
 			h := &ZkRoleGroupHandler{}
 			cr := &zkv1alpha1.ZookeeperCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-zk"}}
 			buildCtx := &reconciler.RoleGroupBuildContext{
 				RoleSpec: &commonsv1alpha1.RoleSpec{
-					Config: &commonsv1alpha1.RoleGroupConfigSpec{GracefulShutdownTimeout: "30s"},
+					Config: &commonsv1alpha1.RoleGroupConfigSpec{GracefulShutdownTimeout: nil},
 				},
 			}
 			h.ensureServerConfigDefaults(cr, buildCtx)
-			Expect(buildCtx.RoleGroupSpec.Config.GracefulShutdownTimeout).To(Equal("120s"))
+			Expect(*buildCtx.RoleGroupSpec.Config.GracefulShutdownTimeout).To(Equal("120s"))
+		})
+
+		It("honors an explicit role-level graceful shutdown equal to the former platform default", func() {
+			// Pre-refactor an explicit "30s" was indistinguishable from the CRD's auto-injected
+			// default and so was overridden to 120s. With nil now meaning "unset", an explicit
+			// "30s" is a real user choice and is honored as-is.
+			h := &ZkRoleGroupHandler{}
+			cr := &zkv1alpha1.ZookeeperCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-zk"}}
+			buildCtx := &reconciler.RoleGroupBuildContext{
+				RoleSpec: &commonsv1alpha1.RoleSpec{
+					Config: &commonsv1alpha1.RoleGroupConfigSpec{GracefulShutdownTimeout: ptr.To("30s")},
+				},
+			}
+			h.ensureServerConfigDefaults(cr, buildCtx)
+			Expect(*buildCtx.RoleGroupSpec.Config.GracefulShutdownTimeout).To(Equal("30s"))
 		})
 
 		It("honors an explicit non-default graceful shutdown at the role level", func() {
@@ -162,11 +179,11 @@ var _ = Describe("ServerStatefulSet", func() {
 			cr := &zkv1alpha1.ZookeeperCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-zk"}}
 			buildCtx := &reconciler.RoleGroupBuildContext{
 				RoleSpec: &commonsv1alpha1.RoleSpec{
-					Config: &commonsv1alpha1.RoleGroupConfigSpec{GracefulShutdownTimeout: "90s"},
+					Config: &commonsv1alpha1.RoleGroupConfigSpec{GracefulShutdownTimeout: ptr.To("90s")},
 				},
 			}
 			h.ensureServerConfigDefaults(cr, buildCtx)
-			Expect(buildCtx.RoleGroupSpec.Config.GracefulShutdownTimeout).To(Equal("90s"))
+			Expect(*buildCtx.RoleGroupSpec.Config.GracefulShutdownTimeout).To(Equal("90s"))
 		})
 
 		It("folds role-level resources into the group when the group omits them", func() {
@@ -176,9 +193,9 @@ var _ = Describe("ServerStatefulSet", func() {
 				RoleSpec: &commonsv1alpha1.RoleSpec{
 					Config: &commonsv1alpha1.RoleGroupConfigSpec{
 						Resources: &commonsv1alpha1.ResourcesSpec{
-							Memory: &commonsv1alpha1.MemoryResource{Limit: resource.MustParse("1Gi")},
+							Memory: &commonsv1alpha1.MemoryResource{Limit: ptr.To(resource.MustParse("1Gi"))},
 						},
-						GracefulShutdownTimeout: "90s",
+						GracefulShutdownTimeout: ptr.To("90s"),
 					},
 				},
 			}
@@ -187,7 +204,7 @@ var _ = Describe("ServerStatefulSet", func() {
 			cfg := buildCtx.RoleGroupSpec.Config
 			// Role-level values win over the built-in defaults...
 			Expect(cfg.Resources.Memory.Limit.String()).To(Equal("1Gi"))
-			Expect(cfg.GracefulShutdownTimeout).To(Equal("90s"))
+			Expect(*cfg.GracefulShutdownTimeout).To(Equal("90s"))
 			// ...and fields the role omits still fall back to the defaults.
 			Expect(cfg.Resources.CPU.Min.String()).To(Equal("100m"))
 		})

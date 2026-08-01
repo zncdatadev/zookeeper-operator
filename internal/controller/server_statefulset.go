@@ -20,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 )
 
 // ZooKeeper role group defaults. The base-operator-go framework applies resources, affinity and
@@ -32,10 +33,6 @@ const (
 	defaultCPUMax           = "200m"
 	defaultMemoryLimit      = "512Mi"
 	defaultGracefulShutdown = "120s"
-	// frameworkGraceDefault is the platform gracefulShutdownTimeout the base-operator-go CRD
-	// injects (commons RoleGroupConfigSpec kubebuilder default); ZooKeeper overrides it with its
-	// own longer product default.
-	frameworkGraceDefault = "30s"
 	// antiAffinityWeight biases (does not force) the scheduler to spread ensemble members across
 	// nodes, so a single node failure cannot take down the quorum.
 	antiAffinityWeight = 70
@@ -73,10 +70,11 @@ func (h *ZkRoleGroupHandler) ensureServerConfigDefaults(cr *zkv1alpha1.Zookeeper
 	case roleRes != nil && roleRes.Storage != nil:
 		cfg.Resources.Storage = roleRes.Storage
 	default:
-		cfg.Resources.Storage = &commonsv1alpha1.StorageResource{Capacity: resource.MustParse(defaultStorageCapacity)}
+		cfg.Resources.Storage = &commonsv1alpha1.StorageResource{Capacity: ptr.To(resource.MustParse(defaultStorageCapacity))}
 	}
-	if cfg.Resources.Storage != nil && cfg.Resources.Storage.Capacity.IsZero() {
-		cfg.Resources.Storage.Capacity = resource.MustParse(defaultStorageCapacity)
+	if cfg.Resources.Storage != nil &&
+		(cfg.Resources.Storage.Capacity == nil || cfg.Resources.Storage.Capacity.IsZero()) {
+		cfg.Resources.Storage.Capacity = ptr.To(resource.MustParse(defaultStorageCapacity))
 	}
 
 	// CPU: group > role > 100m/200m.
@@ -85,8 +83,8 @@ func (h *ZkRoleGroupHandler) ensureServerConfigDefaults(cr *zkv1alpha1.Zookeeper
 			cfg.Resources.CPU = roleRes.CPU
 		} else {
 			cfg.Resources.CPU = &commonsv1alpha1.CPUResource{
-				Min: resource.MustParse(defaultCPUMin),
-				Max: resource.MustParse(defaultCPUMax),
+				Min: ptr.To(resource.MustParse(defaultCPUMin)),
+				Max: ptr.To(resource.MustParse(defaultCPUMax)),
 			}
 		}
 	}
@@ -96,7 +94,7 @@ func (h *ZkRoleGroupHandler) ensureServerConfigDefaults(cr *zkv1alpha1.Zookeeper
 		if roleRes != nil && roleRes.Memory != nil {
 			cfg.Resources.Memory = roleRes.Memory
 		} else {
-			cfg.Resources.Memory = &commonsv1alpha1.MemoryResource{Limit: resource.MustParse(defaultMemoryLimit)}
+			cfg.Resources.Memory = &commonsv1alpha1.MemoryResource{Limit: ptr.To(resource.MustParse(defaultMemoryLimit))}
 		}
 	}
 
@@ -109,25 +107,18 @@ func (h *ZkRoleGroupHandler) ensureServerConfigDefaults(cr *zkv1alpha1.Zookeeper
 		}
 	}
 
-	// Graceful shutdown: group > role > 120s. The framework CRD defaults gracefulShutdownTimeout
-	// to the platform value "30s" and the API server auto-injects it into config even when the
-	// user omits the block, so a literal "30s" cannot be distinguished from "unset" — treat it as
-	// unset so ZooKeeper's longer product default applies, while any other explicit value (at the
-	// group or role level) is honored.
-	if isUnsetGrace(cfg.GracefulShutdownTimeout) {
+	// Graceful shutdown: group > role > 120s. The framework now models gracefulShutdownTimeout as a
+	// *string, so "unset" is a nil pointer — the CRD no longer auto-injects the platform default, so
+	// an explicit user value (including "30s") is always honored and ZooKeeper's longer product
+	// default applies only when neither the group nor the role set one.
+	if cfg.GracefulShutdownTimeout == nil {
 		switch {
-		case roleCfg != nil && !isUnsetGrace(roleCfg.GracefulShutdownTimeout):
+		case roleCfg != nil && roleCfg.GracefulShutdownTimeout != nil:
 			cfg.GracefulShutdownTimeout = roleCfg.GracefulShutdownTimeout
 		default:
-			cfg.GracefulShutdownTimeout = defaultGracefulShutdown
+			cfg.GracefulShutdownTimeout = ptr.To(defaultGracefulShutdown)
 		}
 	}
-}
-
-// isUnsetGrace reports whether a gracefulShutdownTimeout should be treated as not meaningfully
-// configured: either empty or the framework CRD's auto-injected platform default (frameworkGraceDefault).
-func isUnsetGrace(v string) bool {
-	return v == "" || v == frameworkGraceDefault
 }
 
 // defaultServerAffinity returns a preferred pod anti-affinity that biases the scheduler to place

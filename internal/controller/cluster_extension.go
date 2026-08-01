@@ -34,7 +34,7 @@ type ClusterServiceExtension struct {
 	scheme *runtime.Scheme
 }
 
-var _ opcommon.ClusterExtension[opcommon.ClusterInterface] = &ClusterServiceExtension{}
+var _ opcommon.ClusterExtension[*zkv1alpha1.ZookeeperCluster] = &ClusterServiceExtension{}
 
 // NewClusterServiceExtension creates a new ClusterServiceExtension.
 func NewClusterServiceExtension(scheme *runtime.Scheme) *ClusterServiceExtension {
@@ -46,23 +46,14 @@ func (e *ClusterServiceExtension) Name() string { return "zookeeper-cluster-serv
 
 // PreReconcile ensures the cluster-wide client Service exists before role groups are
 // reconciled, so the ZookeeperZnode controller can connect as soon as pods are ready.
-func (e *ClusterServiceExtension) PreReconcile(ctx context.Context, c client.Client, cr opcommon.ClusterInterface) error {
-	zkCluster, ok := cr.(*zkv1alpha1.ZookeeperCluster)
-	if !ok {
-		// Not a ZookeeperCluster; the global registry is shared, so just skip.
-		return nil
-	}
-	return e.ensureClusterService(ctx, c, zkCluster)
+func (e *ClusterServiceExtension) PreReconcile(ctx context.Context, c client.Client, cr *zkv1alpha1.ZookeeperCluster) error {
+	return e.ensureClusterService(ctx, c, cr)
 }
 
 // PostReconcile creates the cluster-level discovery ConfigMap(s) after the role groups (and their
 // pods/endpoints) have been reconciled.
-func (e *ClusterServiceExtension) PostReconcile(ctx context.Context, c client.Client, cr opcommon.ClusterInterface) error {
-	zkCluster, ok := cr.(*zkv1alpha1.ZookeeperCluster)
-	if !ok {
-		return nil
-	}
-	return e.ensureClusterDiscovery(ctx, c, zkCluster)
+func (e *ClusterServiceExtension) PostReconcile(ctx context.Context, c client.Client, cr *zkv1alpha1.ZookeeperCluster) error {
+	return e.ensureClusterDiscovery(ctx, c, cr)
 }
 
 // ensureClusterDiscovery creates the cluster-level discovery ConfigMap(s) so clients can connect
@@ -117,7 +108,7 @@ func (e *ClusterServiceExtension) applyDiscoveryConfigMap(
 }
 
 // OnReconcileError is a no-op.
-func (e *ClusterServiceExtension) OnReconcileError(_ context.Context, _ client.Client, _ opcommon.ClusterInterface, _ error) error {
+func (e *ClusterServiceExtension) OnReconcileError(_ context.Context, _ client.Client, _ *zkv1alpha1.ZookeeperCluster, _ error) error {
 	return nil
 }
 

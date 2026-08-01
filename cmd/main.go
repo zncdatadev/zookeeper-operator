@@ -159,8 +159,10 @@ func main() {
 	// Register cluster-scope extension that creates the cluster-wide client Service.
 	// The service is named after the cluster and is required by the ZookeeperZnode
 	// controller (which connects via the cluster service DNS) and by external-unstable
-	// (NodePort) discovery (which reads the NodePort from this service).
-	opcommon.GetExtensionRegistry().RegisterClusterExtension(controller.NewClusterServiceExtension(mgr.GetScheme()))
+	// (NodePort) discovery (which reads the NodePort from this service). The registry is now
+	// per-CR-type (no process-wide default) and is handed to this reconciler's config below.
+	extensionRegistry := opcommon.NewExtensionRegistry[*zookeeperv1alpha1.ZookeeperCluster]()
+	extensionRegistry.RegisterClusterExtension(controller.NewClusterServiceExtension(mgr.GetScheme()))
 
 	podExec, err := controller.NewPodExec(mgr.GetConfig())
 	if err != nil {
@@ -179,6 +181,7 @@ func main() {
 			ServiceHealthCheck: controller.NewZkServiceHealthCheck(podExec),
 			ServiceAccountName: zookeeperv1alpha1.DefaultProductName,
 			Prototype:          &zookeeperv1alpha1.ZookeeperCluster{},
+			ExtensionRegistry:  extensionRegistry,
 		})
 	if err != nil {
 		setupLog.Error(err, "unable to create GenericReconciler", "controller", "ZookeeperCluster")

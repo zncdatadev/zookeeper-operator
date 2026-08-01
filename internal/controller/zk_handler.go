@@ -67,15 +67,9 @@ func NewZkRoleGroupHandler(scheme *runtime.Scheme) *ZkRoleGroupHandler {
 	h.RoleImages = map[string]string{}
 	h.RoleContainerPorts = map[string][]corev1.ContainerPort{}
 	h.RoleServicePorts = map[string][]corev1.ServicePort{}
-	// app.kubernetes.io/name identifies the product on every resource/pod. The framework's
-	// canonical labels (instance + component=role + managed-by=operator-go) are not enough to
-	// distinguish products in a shared namespace — component=server is generic and managed-by
-	// is shared by all operator-go operators — so the cluster Service selector also keys on
-	// this name (see ClusterServiceExtension) to avoid selecting another product's pods.
-	h.ExtraLabels = map[string]string{
-		"app.kubernetes.io/name": zkv1alpha1.DefaultProductName,
-	}
-	h.ExtraAnnotations = map[string]string{}
+	// app.kubernetes.io/name (the product name) is now stamped per reconcile in BuildResources via
+	// buildCtx.ClusterLabels — the framework only emits it for handlers that set ProductName, which
+	// ZooKeeper cannot use because that also switches image resolution to spec.image.
 	// ZK peers must resolve each other before readiness, and data must be persistent.
 	h.PublishNotReadyAddresses = true
 	h.StorageMountPath = constant.KubedoopDataDir
@@ -110,6 +104,12 @@ func (h *ZkRoleGroupHandler) BuildResources(
 	}
 	secretProvisioner := h.buildSecretProvisioner(zkSecurity)
 	image := h.resolveImage(cr)
+
+	// Publish the recommended app.kubernetes.io/name label on every built resource and pod.
+	// ClusterLabels is a per-reconcile map the framework clones for handlers to write, and
+	// base.BuildResources copies it into resource metadata and the pod template. The framework's
+	// own app.kubernetes.io/name comes from ProductName, which ZooKeeper does not set (see above).
+	buildCtx.ClusterLabels["app.kubernetes.io/name"] = zkv1alpha1.DefaultProductName
 
 	// Configure the per-CR base inputs.
 	h.Image = image
