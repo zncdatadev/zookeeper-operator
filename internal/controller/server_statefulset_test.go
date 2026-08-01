@@ -53,6 +53,23 @@ var _ = Describe("ServerStatefulSet", func() {
 		})
 	})
 
+	Describe("getStartupProbe", func() {
+		It("guards a slow first start with a generous budget so liveness cannot trip early", func() {
+			h := &ZkRoleGroupHandler{}
+			zkSecurity := newTestZookeeperSecurity()
+			probe := h.getStartupProbe(zkSecurity)
+			Expect(probe).NotTo(BeNil())
+			Expect(probe.Exec).NotTo(BeNil())
+			Expect(probe.Exec.Command[2]).To(ContainSubstring("ruok"))
+			Expect(probe.Exec.Command[2]).To(ContainSubstring("imok"))
+			// FailureThreshold*PeriodSeconds must comfortably exceed ZooKeeper's ~25s bind time so a
+			// slow start under a constrained CPU limit is not killed into a CrashLoop.
+			Expect(probe.PeriodSeconds).To(BeEquivalentTo(10))
+			Expect(probe.FailureThreshold).To(BeEquivalentTo(30))
+			Expect(int(probe.PeriodSeconds * probe.FailureThreshold)).To(BeNumerically(">=", 120))
+		})
+	})
+
 	Describe("ensureServerConfigDefaults", func() {
 		minimalCR := &zkv1alpha1.ZookeeperCluster{}
 

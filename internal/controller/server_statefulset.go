@@ -177,6 +177,7 @@ func (h *ZkRoleGroupHandler) customizeStatefulSet(
 	main.Env = append(h.getEnvVars(roleGroupConfig), main.Env...)
 	main.ReadinessProbe = h.getReadinessProbe(zkSecurity)
 	main.LivenessProbe = h.getLivenessProbe(zkSecurity)
+	main.StartupProbe = h.getStartupProbe(zkSecurity)
 	return nil
 }
 
@@ -291,6 +292,30 @@ func (h *ZkRoleGroupHandler) getLivenessProbe(zkSecurity *security.ZookeeperSecu
 		FailureThreshold:    3,
 		SuccessThreshold:    1,
 		TimeoutSeconds:      5,
+	}
+}
+
+// getStartupProbe returns the startup probe for Zookeeper. ZooKeeper does not bind the client
+// port until ~25s into JVM startup, which is slower than the liveness probe's ~30s budget under a
+// constrained CPU limit — without a startup probe a slow first start trips liveness and the
+// container is killed (exit 143) into a CrashLoop before it ever serves. The startup probe runs
+// the same ruok check but with a generous budget (30 * 10s = 5m) and suspends both the liveness
+// and readiness probes until the server first answers, so only genuinely stuck starts fail.
+func (h *ZkRoleGroupHandler) getStartupProbe(zkSecurity *security.ZookeeperSecurity) *corev1.Probe {
+	return &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			Exec: &corev1.ExecAction{
+				Command: []string{
+					bashShell,
+					"-c",
+					fmt.Sprintf("exec 3<>/dev/tcp/127.0.0.1/%d && echo ruok >&3 && grep 'imok' <&3", zkSecurity.ClientPort()),
+				},
+			},
+		},
+		PeriodSeconds:    10,
+		FailureThreshold: 30,
+		SuccessThreshold: 1,
+		TimeoutSeconds:   5,
 	}
 }
 
