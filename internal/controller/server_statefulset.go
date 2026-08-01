@@ -25,10 +25,10 @@ import (
 
 // ZooKeeper role group defaults. The base-operator-go framework applies resources, affinity and
 // gracefulShutdownTimeout only when the merged role group config already carries them, so
-// ZooKeeper supplies its own defaults here (matching the pre-framework behavior). Storage mirrors
-// the CRD default so a minimal cluster still gets a data PVC.
+// ZooKeeper supplies its own defaults here (matching the pre-framework behavior). Storage is only
+// ensured non-nil so a minimal cluster still gets a data PVC; the framework's GetCapacity() then
+// applies the 10Gi default capacity.
 const (
-	defaultStorageCapacity  = "10Gi"
 	defaultCPUMin           = "100m"
 	defaultCPUMax           = "200m"
 	defaultMemoryLimit      = "512Mi"
@@ -64,17 +64,17 @@ func (h *ZkRoleGroupHandler) ensureServerConfigDefaults(cr *zkv1alpha1.Zookeeper
 		cfg.Resources = &commonsv1alpha1.ResourcesSpec{}
 	}
 
-	// Storage: group > role > 10Gi.
+	// Storage: ensure a data PVC exists. The framework builds the VolumeClaimTemplate only when
+	// Resources.Storage is non-nil, so default it to an empty StorageResource when neither the
+	// group nor the role sets one. Its capacity is left to the framework, whose
+	// StorageResource.GetCapacity() applies DefaultStorageCapacity (10Gi) — the value ZooKeeper
+	// used — when unset.
 	switch {
 	case cfg.Resources.Storage != nil:
 	case roleRes != nil && roleRes.Storage != nil:
 		cfg.Resources.Storage = roleRes.Storage
 	default:
-		cfg.Resources.Storage = &commonsv1alpha1.StorageResource{Capacity: ptr.To(resource.MustParse(defaultStorageCapacity))}
-	}
-	if cfg.Resources.Storage != nil &&
-		(cfg.Resources.Storage.Capacity == nil || cfg.Resources.Storage.Capacity.IsZero()) {
-		cfg.Resources.Storage.Capacity = ptr.To(resource.MustParse(defaultStorageCapacity))
+		cfg.Resources.Storage = &commonsv1alpha1.StorageResource{}
 	}
 
 	// CPU: group > role > 100m/200m.

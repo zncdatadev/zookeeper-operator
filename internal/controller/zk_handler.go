@@ -124,9 +124,7 @@ func (h *ZkRoleGroupHandler) BuildResources(
 	// SidecarManager.InjectAll() internally.
 	// The prepare init container writes each pod's myid as (base + ordinal); the base is this
 	// role group's non-overlapping myid start, so myids stay unique across the whole ensemble.
-	if err := h.registerServerContainers(buildCtx, image, serverGroupBaseIDs(cr)[buildCtx.RoleGroupName]); err != nil {
-		return nil, err
-	}
+	h.registerServerContainers(buildCtx, image, serverGroupBaseIDs(cr)[buildCtx.RoleGroupName])
 
 	// Hand the CSI secret (TLS) volumes to the framework so base.BuildResources() injects them
 	// into the pod and the main container, instead of appending them by hand afterwards.
@@ -177,9 +175,11 @@ func (h *ZkRoleGroupHandler) BuildResources(
 	return res, nil
 }
 
-// registerServerContainers registers the myid init container and configures the Vector
-// sidecar on the SidecarManager so that base.BuildResources() injects them.
-func (h *ZkRoleGroupHandler) registerServerContainers(buildCtx *reconciler.RoleGroupBuildContext, image string, minServerID int32) error {
+// registerServerContainers registers the myid init container on the SidecarManager so that
+// base.BuildResources() injects it. The product image is propagated to the framework-constructed
+// Vector sidecar by base.BuildResources() itself (operator-go #536), so no manual SetProductImage
+// call is needed here.
+func (h *ZkRoleGroupHandler) registerServerContainers(buildCtx *reconciler.RoleGroupBuildContext, image string, minServerID int32) {
 	mgr := buildCtx.SidecarManager // always non-nil (GenericReconciler guarantees it)
 
 	// myid init container — a one-shot init (nil RestartPolicy), injected through the manager.
@@ -187,14 +187,6 @@ func (h *ZkRoleGroupHandler) registerServerContainers(buildCtx *reconciler.RoleG
 		sidecar.NewStaticContainerProvider(h.buildPrepareContainer(image, minServerID)),
 		&sidecar.SidecarConfig{Enabled: true},
 	)
-
-	// The framework's GenericReconciler already constructs the Vector sidecar pointed at this
-	// role group's ConfigMap (WithConfigMapName(ResourceName)); we only need to set the product
-	// image on the registered sidecars (not done for embedding handlers).
-	if err := mgr.SetProductImage(image, corev1.PullIfNotPresent); err != nil {
-		return fmt.Errorf("failed to set product image on sidecars: %w", err)
-	}
-	return nil
 }
 
 // buildSecretProvisioner creates a SecretProvisioner with all CSI secret volumes

@@ -73,7 +73,7 @@ var _ = Describe("ServerStatefulSet", func() {
 	Describe("ensureServerConfigDefaults", func() {
 		minimalCR := &zkv1alpha1.ZookeeperCluster{}
 
-		It("defaults storage to 10Gi when resources.storage is unset (minimal CR)", func() {
+		It("ensures a data PVC exists (non-nil storage) and defers its capacity to the framework", func() {
 			h := &ZkRoleGroupHandler{}
 			// RoleGroupSpec.Config nil → previously produced a dangling data mount with no PVC.
 			buildCtx := &reconciler.RoleGroupBuildContext{}
@@ -82,8 +82,12 @@ var _ = Describe("ServerStatefulSet", func() {
 			cfg := buildCtx.RoleGroupSpec.Config
 			Expect(cfg).NotTo(BeNil())
 			Expect(cfg.Resources).NotTo(BeNil())
+			// Storage must be non-nil so the framework builds a data PVC; its capacity is left unset
+			// and the framework's GetCapacity() applies DefaultStorageCapacity (10Gi).
 			Expect(cfg.Resources.Storage).NotTo(BeNil())
-			Expect(cfg.Resources.Storage.Capacity.String()).To(Equal("10Gi"))
+			Expect(cfg.Resources.Storage.Capacity).To(BeNil())
+			capacity := cfg.Resources.Storage.GetCapacity()
+			Expect(capacity.String()).To(Equal("10Gi"))
 		})
 
 		It("keeps a user-specified storage capacity", func() {
