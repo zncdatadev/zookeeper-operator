@@ -315,6 +315,14 @@ func (h *ZkRoleGroupHandler) getStartupProbe(zkSecurity *security.ZookeeperSecur
 }
 
 // getReadinessProbe returns the readiness probe for Zookeeper.
+//
+// The one-second period and timeout this probe used to carry are not survivable for an exec probe
+// on a CPU-limited JVM container: the check forks bash, opens a TCP connection and greps, and under
+// the default 200m limit the container is CFS-throttled in the large majority of scheduling periods,
+// so the command's tail latency runs past a second even though ZooKeeper is serving normally. Three
+// such samples in a row — three seconds — dropped a healthy server out of the Service endpoints and
+// the StatefulSet never reported all replicas available. A five-second budget covers the throttled
+// tail; keeping FailureThreshold at 3 still removes a genuinely unresponsive server within 15s.
 func (h *ZkRoleGroupHandler) getReadinessProbe(zkSecurity *security.ZookeeperSecurity) *corev1.Probe {
 	return &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
@@ -327,8 +335,8 @@ func (h *ZkRoleGroupHandler) getReadinessProbe(zkSecurity *security.ZookeeperSec
 			},
 		},
 		FailureThreshold: 3,
-		PeriodSeconds:    1,
+		PeriodSeconds:    5,
 		SuccessThreshold: 1,
-		TimeoutSeconds:   1,
+		TimeoutSeconds:   5,
 	}
 }
