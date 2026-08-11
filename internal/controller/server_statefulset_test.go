@@ -13,7 +13,6 @@ import (
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -71,13 +70,11 @@ var _ = Describe("ServerStatefulSet", func() {
 	})
 
 	Describe("ensureServerConfigDefaults", func() {
-		minimalCR := &zkv1alpha1.ZookeeperCluster{}
-
 		It("ensures a data PVC exists (non-nil storage) and defers its capacity to the framework", func() {
 			h := &ZkRoleGroupHandler{}
 			// RoleGroupSpec.Config nil → previously produced a dangling data mount with no PVC.
 			buildCtx := &reconciler.RoleGroupBuildContext{}
-			h.ensureServerConfigDefaults(minimalCR, buildCtx)
+			Expect(h.ensureServerConfigDefaults(buildCtx)).To(Succeed())
 
 			cfg := buildCtx.RoleGroupSpec.Config
 			Expect(cfg).NotTo(BeNil())
@@ -101,15 +98,14 @@ var _ = Describe("ServerStatefulSet", func() {
 					},
 				},
 			}
-			h.ensureServerConfigDefaults(minimalCR, buildCtx)
+			Expect(h.ensureServerConfigDefaults(buildCtx)).To(Succeed())
 			Expect(buildCtx.RoleGroupSpec.Config.Resources.Storage.Capacity.String()).To(Equal("5Gi"))
 		})
 
 		It("defaults CPU, memory, anti-affinity and graceful shutdown for a minimal cluster", func() {
 			h := &ZkRoleGroupHandler{}
-			cr := &zkv1alpha1.ZookeeperCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-zk"}}
-			buildCtx := &reconciler.RoleGroupBuildContext{}
-			h.ensureServerConfigDefaults(cr, buildCtx)
+			buildCtx := &reconciler.RoleGroupBuildContext{ClusterName: "test-zk", RoleName: serverRoleName}
+			Expect(h.ensureServerConfigDefaults(buildCtx)).To(Succeed())
 
 			cfg := buildCtx.RoleGroupSpec.Config
 			Expect(cfg.Resources.CPU.Min.String()).To(Equal("100m"))
@@ -129,7 +125,6 @@ var _ = Describe("ServerStatefulSet", func() {
 
 		It("preserves user-set CPU/memory/affinity/graceful-shutdown at the group level", func() {
 			h := &ZkRoleGroupHandler{}
-			cr := &zkv1alpha1.ZookeeperCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-zk"}}
 			buildCtx := &reconciler.RoleGroupBuildContext{
 				RoleGroupSpec: commonsv1alpha1.RoleGroupSpec{
 					Config: &commonsv1alpha1.RoleGroupConfigSpec{
@@ -141,7 +136,7 @@ var _ = Describe("ServerStatefulSet", func() {
 					},
 				},
 			}
-			h.ensureServerConfigDefaults(cr, buildCtx)
+			Expect(h.ensureServerConfigDefaults(buildCtx)).To(Succeed())
 
 			cfg := buildCtx.RoleGroupSpec.Config
 			Expect(cfg.Resources.CPU.Min.String()).To(Equal("500m"))
@@ -151,9 +146,8 @@ var _ = Describe("ServerStatefulSet", func() {
 
 		It("drives ZK_SERVER_HEAP from the defaulted memory for a minimal cluster", func() {
 			h := &ZkRoleGroupHandler{}
-			cr := &zkv1alpha1.ZookeeperCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-zk"}}
 			buildCtx := &reconciler.RoleGroupBuildContext{}
-			h.ensureServerConfigDefaults(cr, buildCtx)
+			Expect(h.ensureServerConfigDefaults(buildCtx)).To(Succeed())
 
 			var heap string
 			for _, e := range h.getEnvVars(buildCtx.RoleGroupSpec.GetConfig()) {
@@ -166,52 +160,38 @@ var _ = Describe("ServerStatefulSet", func() {
 		})
 
 		It("applies the 120s product default only when graceful shutdown is unset (nil)", func() {
-			// gracefulShutdownTimeout is now a *string, so "unset" is a nil pointer and the CRD no
-			// longer auto-injects the platform "30s". A minimal cluster leaves it nil at every
-			// level, so ZooKeeper's longer 120s product default applies.
+			// gracefulShutdownTimeout is a *string, so "unset" is a nil pointer and the CRD does not
+			// default it. A minimal cluster leaves it nil at every level, so ZooKeeper's longer 120s
+			// product default applies.
 			h := &ZkRoleGroupHandler{}
-			cr := &zkv1alpha1.ZookeeperCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-zk"}}
-			buildCtx := &reconciler.RoleGroupBuildContext{
-				RoleSpec: &commonsv1alpha1.RoleSpec{
-					Config: &commonsv1alpha1.RoleGroupConfigSpec{GracefulShutdownTimeout: nil},
-				},
-			}
-			h.ensureServerConfigDefaults(cr, buildCtx)
+			buildCtx := &reconciler.RoleGroupBuildContext{ClusterName: "test-zk", RoleName: serverRoleName}
+			Expect(h.ensureServerConfigDefaults(buildCtx)).To(Succeed())
 			Expect(*buildCtx.RoleGroupSpec.Config.GracefulShutdownTimeout).To(Equal("120s"))
 		})
 
-		It("honors an explicit role-level graceful shutdown equal to the former platform default", func() {
-			// Pre-refactor an explicit "30s" was indistinguishable from the CRD's auto-injected
-			// default and so was overridden to 120s. With nil now meaning "unset", an explicit
-			// "30s" is a real user choice and is honored as-is.
+		// The next two cases feed the config through RoleGroupSpec.Config because that is what a
+		// handler is handed: GenericReconciler folds the role's config beneath the role group's
+		// (MergeRoleGroupConfig) before building the context, so a value the user wrote at either
+		// level arrives here already merged. These therefore cover the role level too.
+		It("honors an explicit graceful shutdown equal to the platform default", func() {
+			// An explicit "30s" used to be indistinguishable from the CRD's auto-injected default and
+			// was overridden to 120s. With nil meaning "unset", it is a real user choice and stands.
 			h := &ZkRoleGroupHandler{}
-			cr := &zkv1alpha1.ZookeeperCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-zk"}}
 			buildCtx := &reconciler.RoleGroupBuildContext{
-				RoleSpec: &commonsv1alpha1.RoleSpec{
+				ClusterName: "test-zk", RoleName: serverRoleName,
+				RoleGroupSpec: commonsv1alpha1.RoleGroupSpec{
 					Config: &commonsv1alpha1.RoleGroupConfigSpec{GracefulShutdownTimeout: ptr.To("30s")},
 				},
 			}
-			h.ensureServerConfigDefaults(cr, buildCtx)
+			Expect(h.ensureServerConfigDefaults(buildCtx)).To(Succeed())
 			Expect(*buildCtx.RoleGroupSpec.Config.GracefulShutdownTimeout).To(Equal("30s"))
 		})
 
-		It("honors an explicit non-default graceful shutdown at the role level", func() {
+		It("keeps a merged-in value and still defaults the fields it does not cover", func() {
 			h := &ZkRoleGroupHandler{}
-			cr := &zkv1alpha1.ZookeeperCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-zk"}}
 			buildCtx := &reconciler.RoleGroupBuildContext{
-				RoleSpec: &commonsv1alpha1.RoleSpec{
-					Config: &commonsv1alpha1.RoleGroupConfigSpec{GracefulShutdownTimeout: ptr.To("90s")},
-				},
-			}
-			h.ensureServerConfigDefaults(cr, buildCtx)
-			Expect(*buildCtx.RoleGroupSpec.Config.GracefulShutdownTimeout).To(Equal("90s"))
-		})
-
-		It("folds role-level resources into the group when the group omits them", func() {
-			h := &ZkRoleGroupHandler{}
-			cr := &zkv1alpha1.ZookeeperCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-zk"}}
-			buildCtx := &reconciler.RoleGroupBuildContext{
-				RoleSpec: &commonsv1alpha1.RoleSpec{
+				ClusterName: "test-zk", RoleName: serverRoleName,
+				RoleGroupSpec: commonsv1alpha1.RoleGroupSpec{
 					Config: &commonsv1alpha1.RoleGroupConfigSpec{
 						Resources: &commonsv1alpha1.ResourcesSpec{
 							Memory: &commonsv1alpha1.MemoryResource{Limit: ptr.To(resource.MustParse("1Gi"))},
@@ -220,14 +200,15 @@ var _ = Describe("ServerStatefulSet", func() {
 					},
 				},
 			}
-			h.ensureServerConfigDefaults(cr, buildCtx)
+			Expect(h.ensureServerConfigDefaults(buildCtx)).To(Succeed())
 
 			cfg := buildCtx.RoleGroupSpec.Config
-			// Role-level values win over the built-in defaults...
+			// What the user stated survives...
 			Expect(cfg.Resources.Memory.Limit.String()).To(Equal("1Gi"))
 			Expect(*cfg.GracefulShutdownTimeout).To(Equal("90s"))
-			// ...and fields the role omits still fall back to the defaults.
+			// ...and what nobody stated still gets the product default.
 			Expect(cfg.Resources.CPU.Min.String()).To(Equal("100m"))
+			Expect(cfg.Affinity).NotTo(BeNil())
 		})
 	})
 })

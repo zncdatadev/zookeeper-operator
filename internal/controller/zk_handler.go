@@ -131,7 +131,9 @@ func (h *ZkRoleGroupHandler) BuildResources(
 	buildCtx.ServicePorts = h.servicePorts(zkSecurity)
 	// Fill in ZooKeeper role group defaults (storage, CPU/memory, anti-affinity, graceful
 	// shutdown) the framework does not supply, before base.BuildResources consumes the config.
-	h.ensureServerConfigDefaults(cr, buildCtx)
+	if err := h.ensureServerConfigDefaults(buildCtx); err != nil {
+		return nil, err
+	}
 
 	// Register the containers that the SidecarManager will inject (myid init container +
 	// product image on Vector). This must happen before base.BuildResources(), which runs
