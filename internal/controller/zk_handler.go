@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/productlogging"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
@@ -65,11 +66,18 @@ func NewZkRoleGroupHandler(scheme *runtime.Scheme) *ZkRoleGroupHandler {
 	h.Scheme = scheme
 	h.ImagePullPolicy = corev1.PullIfNotPresent
 	h.RoleImages = map[string]string{}
-	h.RoleContainerPorts = map[string][]corev1.ContainerPort{}
-	h.RoleServicePorts = map[string][]corev1.ServicePort{}
-	// app.kubernetes.io/name (the product name) is now stamped per reconcile in BuildResources via
-	// buildCtx.ClusterLabels — the framework only emits it for handlers that set ProductName, which
-	// ZooKeeper cannot use because that also switches image resolution to spec.image.
+	// ProductName names the product: it supplies the repository path segment of the resolved image
+	// and the app.kubernetes.io/{name,version} labels. ImageDefaults fills in whatever spec.image
+	// leaves empty, re-evaluated every reconcile — which is why KubedoopVersion can be the
+	// operator's own build version, so an operator upgrade moves existing clusters onto the
+	// co-released product image. Kubedoop publishes ZooKeeper images only with the
+	// "-kubedoop<version>" suffix, so that field must always resolve to something.
+	h.ProductName = zkv1alpha1.DefaultProductName
+	h.ImageDefaults = commonsv1alpha1.ImageSpec{
+		Repo:            zkv1alpha1.DefaultRepository,
+		ProductVersion:  zkv1alpha1.DefaultProductVersion,
+		KubedoopVersion: version.BuildVersion,
+	}
 	// ZK peers must resolve each other before readiness, and data must be persistent.
 	h.PublishNotReadyAddresses = true
 	h.StorageMountPath = constant.KubedoopDataDir
@@ -103,18 +111,24 @@ func (h *ZkRoleGroupHandler) BuildResources(
 		return nil, fmt.Errorf("failed to create zookeeper security: %w", err)
 	}
 	secretProvisioner := h.buildSecretProvisioner(zkSecurity)
-	image := h.resolveImage(cr)
+	// Resolve the image from the same input and through the same function the framework uses for
+	// the main container, because the prepare init container below runs the product image too and
+	// must not drift from it. An unresolvable spec.image is reported rather than silently replaced
+	// with some other version.
+	var imageSpec *commonsv1alpha1.ImageSpec
+	if buildCtx.ClusterSpec != nil {
+		imageSpec = buildCtx.ClusterSpec.Image
+	}
+	image, err := imageSpec.ResolveImage(h.ProductName, h.ImageDefaults)
+	if err != nil {
+		return nil, err
+	}
 
-	// Publish the recommended app.kubernetes.io/name label on every built resource and pod.
-	// ClusterLabels is a per-reconcile map the framework clones for handlers to write, and
-	// base.BuildResources copies it into resource metadata and the pod template. The framework's
-	// own app.kubernetes.io/name comes from ProductName, which ZooKeeper does not set (see above).
-	buildCtx.ClusterLabels["app.kubernetes.io/name"] = zkv1alpha1.DefaultProductName
-
-	// Configure the per-CR base inputs.
-	h.Image = image
-	h.SetRoleContainerPorts(serverRoleName, h.containerPorts(zkSecurity))
-	h.SetRoleServicePorts(serverRoleName, h.servicePorts(zkSecurity))
+	// Per-CR inputs go on the build context, not the handler: one handler instance serves every
+	// ZookeeperCluster, so writing them to its fields would let concurrent reconciles of different
+	// clusters overwrite each other.
+	buildCtx.ContainerPorts = h.containerPorts(zkSecurity)
+	buildCtx.ServicePorts = h.servicePorts(zkSecurity)
 	// Fill in ZooKeeper role group defaults (storage, CPU/memory, anti-affinity, graceful
 	// shutdown) the framework does not supply, before base.BuildResources consumes the config.
 	h.ensureServerConfigDefaults(cr, buildCtx)
@@ -132,17 +146,22 @@ func (h *ZkRoleGroupHandler) BuildResources(
 	// accumulate across reconciles or leak across CRs.
 	buildCtx.VolumeProviders = append(buildCtx.VolumeProviders, secretProvisioner)
 
+	// Declare the ZooKeeper specifics of the primary container through the framework's hook rather
+	// than editing the built StatefulSet: the customizer is handed the assembled container by name,
+	// where the old post-build code indexed Containers[0] — a position the framework never promised
+	// and that any sidecar provider inserting a container earlier would silently break. It runs
+	// after the framework has applied envOverrides (so appending them after ours keeps the user's
+	// last word) and before podOverrides are strategic-merged (so those still outrank us).
+	buildCtx.MainContainerCustomizer = func(c *corev1.Container) error {
+		return h.customizeMainContainer(c, buildCtx, zkSecurity)
+	}
+
 	// Let the framework build the skeleton: canonical labels, headless Service (with
 	// PublishNotReadyAddresses), client Service, StatefulSet (data PVC + injected
 	// sidecars/init), and PodDisruptionBudget.
 	res, err := h.BaseRoleGroupHandler.BuildResources(ctx, k8sClient, cr, buildCtx)
 	if err != nil {
 		return nil, fmt.Errorf("base build failed: %w", err)
-	}
-
-	// Customize the StatefulSet with Zookeeper specifics.
-	if err := h.customizeStatefulSet(res.StatefulSet, buildCtx, zkSecurity); err != nil {
-		return nil, err
 	}
 
 	// Replace the ConfigMap with computed Zookeeper config (zoo.cfg, security.properties,
@@ -225,34 +244,4 @@ func (h *ZkRoleGroupHandler) buildSecretProvisioner(zkSecurity *security.Zookeep
 	}
 
 	return provisioner
-}
-
-// resolveImage constructs the container image string from the CR spec.
-func (h *ZkRoleGroupHandler) resolveImage(cr *zkv1alpha1.ZookeeperCluster) string {
-	repo := zkv1alpha1.DefaultRepository
-	productVersion := zkv1alpha1.DefaultProductVersion
-	// The kubedoop platform version defaults to the operator's own build version, so the tag
-	// resolves to the co-released product image (e.g. "3.9.3-kubedoop0.0.0-dev"). The kubedoop
-	// product images are ONLY published with this suffix — a bare "<productVersion>" tag does
-	// not exist — so the suffix must always be present.
-	kubedoopVersion := version.BuildVersion
-
-	if cr.Spec.Image != nil {
-		img := cr.Spec.Image
-		if img.Custom != "" {
-			return img.Custom
-		}
-		if img.Repo != "" {
-			repo = img.Repo
-		}
-		if img.ProductVersion != "" {
-			productVersion = img.ProductVersion
-		}
-		if img.KubedoopVersion != "" {
-			kubedoopVersion = img.KubedoopVersion
-		}
-	}
-
-	return fmt.Sprintf("%s/%s:%s-kubedoop%s",
-		repo, zkv1alpha1.DefaultProductName, productVersion, kubedoopVersion)
 }

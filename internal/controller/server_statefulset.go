@@ -14,7 +14,6 @@ import (
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
 	"github.com/zncdatadev/zookeeper-operator/internal/constant"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -149,28 +148,24 @@ func defaultServerAffinity(clusterName string) *runtime.RawExtension {
 	return &runtime.RawExtension{Raw: raw}
 }
 
-// customizeStatefulSet applies Zookeeper specifics to the StatefulSet built by the base
-// handler: the start command, exec probes, env and heap sizing. Pod identity (ServiceAccount),
-// the default pod/container SecurityContext, the config ConfigMap mount, the data PVC, the
-// shared Vector log volume (on the renamed "zookeeper" container), the CSI secret (TLS) volumes
-// (registered via buildCtx.VolumeProviders), ports, resources and injected sidecars/init
-// containers are already in place from the framework builder.
-func (h *ZkRoleGroupHandler) customizeStatefulSet(
-	sts *appsv1.StatefulSet,
+// customizeMainContainer applies Zookeeper specifics to the primary container the framework
+// assembles: the start command, exec probes, env and heap sizing. It is registered as
+// buildCtx.MainContainerCustomizer and runs during the build. Pod identity (ServiceAccount), the
+// default pod/container SecurityContext, the config ConfigMap mount, the data PVC, the shared
+// Vector log volume (on the renamed "zookeeper" container), the CSI secret (TLS) volumes
+// (registered via buildCtx.VolumeProviders), the image, ports, resources and injected
+// sidecars/init containers are already in place from the framework builder.
+func (h *ZkRoleGroupHandler) customizeMainContainer(
+	main *corev1.Container,
 	buildCtx *reconciler.RoleGroupBuildContext,
 	zkSecurity *security.ZookeeperSecurity,
 ) error {
 	roleGroupConfig := buildCtx.RoleGroupSpec.GetConfig()
-	podSpec := &sts.Spec.Template.Spec
 
-	if len(podSpec.Containers) == 0 {
-		return fmt.Errorf("base handler produced no main container")
-	}
-	// The framework renamed the primary container to "zookeeper"
-	// (BaseRoleGroupHandler.MainContainerName) and gave it the framework-managed config/data/log
-	// mounts plus the registered CSI secret (TLS) volume mounts, so we only set the command, env
-	// and probes here.
-	main := &podSpec.Containers[0]
+	// The framework hands us the assembled primary container: already named "zookeeper"
+	// (BaseRoleGroupHandler.MainContainerName), already carrying the framework-managed
+	// config/data/log mounts plus the registered CSI secret (TLS) volume mounts and the resolved
+	// image, so we only set the command, env and probes here.
 	main.Command = []string{"/bin/bash", "-x", "-euo", "pipefail", "-c"}
 	main.Args = h.getMainContainerArgs()
 	// User envOverrides (already on the container from the builder) win over our defaults.

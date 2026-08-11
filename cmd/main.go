@@ -179,7 +179,6 @@ func main() {
 			Recorder:           mgr.GetEventRecorderFor("zookeeper-cluster-controller"), //nolint:staticcheck
 			RoleGroupHandler:   zkHandler,
 			ServiceHealthCheck: controller.NewZkServiceHealthCheck(podExec),
-			ServiceAccountName: zookeeperv1alpha1.DefaultProductName,
 			Prototype:          &zookeeperv1alpha1.ZookeeperCluster{},
 			ExtensionRegistry:  extensionRegistry,
 		})
