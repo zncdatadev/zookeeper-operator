@@ -15,4 +15,10 @@ package controller
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=pods/exec,verbs=create
+// The framework records reconcile progress and faults as Events on the cluster CR and the resources
+// it builds, in the namespace the CR lives in. Without this the API server rejects every one of
+// them ("events is forbidden"), so the operator's own warnings — an ignored immutable field, a
+// failed role group — are invisible to `kubectl describe`. Patch is required as well as create:
+// repeated events are aggregated onto the existing object rather than written anew.
+// +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=authentication.kubedoop.dev,resources=authenticationclasses,verbs=get;list;watch
