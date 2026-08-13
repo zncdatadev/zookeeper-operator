@@ -277,6 +277,26 @@ HELM ?= helm
 helm-crd-sync: manifests kustomize ## Sync CRDs to helm chart for the operator
 	"$(KUSTOMIZE)" build config/crd > deploy/helm/$(PROJECT_NAME)/crds/crds.yaml
 
+# The chart's operator ClusterRole duplicates the rules controller-gen writes into
+# config/rbac/role.yaml from the kubebuilder markers. Only the rules are generated: the document is a
+# helm template whose name and labels come from helpers and whose body is wrapped in an
+# `{{- if .Values.serviceAccount.create -}}` guard, so it cannot be replaced wholesale and YAML-aware
+# tools cannot parse it in place. Splicing by line range keeps that chart-owned wrapper intact and
+# needs no tool beyond sed: `rules:` is the last top-level key of role.yaml, so the generated block
+# is simply "from ^rules: to EOF".
+#
+# Without this, adding a kubebuilder marker updates the kustomize deployment and silently leaves the
+# chart — which is what chart-e2e, the release and every user actually deploy — behind. See #371.
+.PHONY: helm-rbac-sync ## Sync the generated operator ClusterRole rules to the helm chart.
+helm-rbac-sync: manifests ## Sync the generated operator ClusterRole rules to the helm chart
+	@tmp=$$(mktemp); \
+	{ \
+	  sed -n '1,/^rules:/p' deploy/helm/$(PROJECT_NAME)/templates/clusterrole.yaml | sed '$$d'; \
+	  sed -n '/^rules:/,$$p' config/rbac/role.yaml; \
+	  echo '{{- end }}'; \
+	} > $$tmp; \
+	mv $$tmp deploy/helm/$(PROJECT_NAME)/templates/clusterrole.yaml
+
 .PHONY: helm-chart-package ## Package helm chart for the operator.
 helm-chart-package: ## Package helm chart for the operator.
 	mkdir -p target/charts
