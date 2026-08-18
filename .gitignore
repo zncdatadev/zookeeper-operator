@@ -58,3 +58,6 @@ target
 
 # ai tools
 .omc/
+
+# AI worktree
+.worktree/

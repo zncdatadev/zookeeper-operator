@@ -156,8 +156,11 @@ jobs:
         run: |
           # Use `make manifests` to generate the CRDs
           make manifests
-          # Check if the CRDs are in sync with the manifests
-          if ! git diff --exit-code; then
+          # Check if the CRDs are in sync with the manifests.
+          # Stage everything first so newly generated (untracked) files are
+          # detected too; plain `git diff` ignores untracked files.
+          git add -A
+          if ! git diff --cached --exit-code; then
             echo "CRDs are not in sync with the manifests."
             echo "Please run 'make manifests' to update the CRDs."
             exit 1
@@ -202,8 +205,10 @@ jobs:
         id: lint
         uses: helm/chart-testing-action@v2.8.0
 
-      - name: Fetch all tags
-        run: git fetch --tags --force
+      - name: Fetch all tags and release branches
+        run: |
+          git fetch --tags --force
+          git fetch origin --no-tags '+refs/heads/release-*:refs/remotes/origin/release-*'
 
       - name: Get commit range
         id: commit-range
