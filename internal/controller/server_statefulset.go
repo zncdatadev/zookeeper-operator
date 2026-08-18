@@ -34,89 +34,50 @@ const (
 	antiAffinityWeight = 70
 )
 
-// ensureServerConfigDefaults fills in the ZooKeeper role group defaults the framework does not
-// supply on its own: a data PVC, CPU/memory requests+limits, a preferred pod anti-affinity that
-// spreads ensemble members across nodes, and a 120s graceful-shutdown window.
+// serverConfigDefaults is the ZooKeeper server role's own config defaults: a data PVC, CPU/memory
+// requests+limits, a preferred pod anti-affinity that spreads ensemble members across nodes, and a
+// 120s graceful-shutdown window.
 //
-// It only ever fills fields that are still unset. buildCtx.RoleGroupSpec.Config is already the
-// result of the framework folding the role's config beneath the role group's
-// (GenericReconciler: MergeRoleGroupConfig(roleSpec.Config, groupSpec.Config)), so anything the
-// user stated at either level is present here and is left alone.
-func (h *ZkRoleGroupHandler) ensureServerConfigDefaults(buildCtx *reconciler.RoleGroupBuildContext) error {
-	if buildCtx.RoleGroupSpec.Config == nil {
-		buildCtx.RoleGroupSpec.Config = &commonsv1alpha1.RoleGroupConfigSpec{}
-	}
-	cfg := buildCtx.RoleGroupSpec.Config
-
-	if cfg.Resources == nil {
-		cfg.Resources = &commonsv1alpha1.ResourcesSpec{}
-	}
-
-	// Storage: ensure a data PVC exists. The framework builds the VolumeClaimTemplate only when
-	// Resources.Storage is non-nil, so default it to an empty StorageResource. Its capacity is left
-	// to the framework, whose StorageResource.GetCapacity() applies DefaultStorageCapacity (10Gi) —
-	// the value ZooKeeper used — when unset.
-	if cfg.Resources.Storage == nil {
-		cfg.Resources.Storage = &commonsv1alpha1.StorageResource{}
-	}
-
-	if cfg.Resources.CPU == nil {
-		cfg.Resources.CPU = &commonsv1alpha1.CPUResource{
-			Min: ptr.To(resource.MustParse(defaultCPUMin)),
-			Max: ptr.To(resource.MustParse(defaultCPUMax)),
-		}
-	}
-
-	// Memory also drives ZK_SERVER_HEAP in getEnvVars.
-	if cfg.Resources.Memory == nil {
-		cfg.Resources.Memory = &commonsv1alpha1.MemoryResource{Limit: ptr.To(resource.MustParse(defaultMemoryLimit))}
-	}
-
+// It is DECLARED, not applied. The framework folds it beneath the CR's role and role group levels
+// through the same rules those two use, so `resources` folds per leaf (a default cpu.min survives a
+// user who set only cpu.max) and anything the user states anywhere still wins.
+func serverConfigDefaults(clusterName string) (*commonsv1alpha1.RoleGroupConfigSpec, error) {
 	// A preferred (not required) anti-affinity, so a single node failure cannot take the quorum
 	// down while a cluster larger than the node count still schedules.
-	if cfg.Affinity == nil {
-		affinity, err := reconciler.EncodeAffinity(reconciler.DefaultAntiAffinity(
-			buildCtx.ClusterName, buildCtx.RoleName, reconciler.TopologyKeyHostname, antiAffinityWeight))
-		if err != nil {
-			return fmt.Errorf("failed to encode the default anti-affinity: %w", err)
-		}
-		cfg.Affinity = affinity
+	affinity, err := reconciler.EncodeAffinity(&corev1.Affinity{
+		PodAntiAffinity: &corev1.PodAntiAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
+				reconciler.PreferredAffinityTerm(antiAffinityWeight, reconciler.TopologyKeyHostname,
+					reconciler.RoleSelectorLabels(clusterName, serverRoleName)),
+			},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode the default anti-affinity: %w", err)
 	}
 
-	// gracefulShutdownTimeout is a *string, so "unset" is a nil pointer: the CRD does not default
-	// it, and an explicit user value (including the platform's own "30s") is honored as written.
-	if cfg.GracefulShutdownTimeout == nil {
-		cfg.GracefulShutdownTimeout = ptr.To(defaultGracefulShutdown)
-	}
-	return nil
+	return &commonsv1alpha1.RoleGroupConfigSpec{
+		Resources: &commonsv1alpha1.ResourcesSpec{
+			// Storage only has to be non-nil for the framework to build the data PVC; its capacity
+			// is left to StorageResource.GetCapacity(), which applies the 10Gi default.
+			Storage: &commonsv1alpha1.StorageResource{},
+			CPU: &commonsv1alpha1.CPUResource{
+				Min: ptr.To(resource.MustParse(defaultCPUMin)),
+				Max: ptr.To(resource.MustParse(defaultCPUMax)),
+			},
+			// Memory also drives ZK_SERVER_HEAP, derived from the FOLDED value in ResolveRoleGroup.
+			Memory: &commonsv1alpha1.MemoryResource{Limit: ptr.To(resource.MustParse(defaultMemoryLimit))},
+		},
+		Affinity:                affinity,
+		GracefulShutdownTimeout: ptr.To(defaultGracefulShutdown),
+	}, nil
 }
 
-// customizeMainContainer applies Zookeeper specifics to the primary container the framework
-// assembles: the start command, exec probes, env and heap sizing. It is registered as
-// buildCtx.MainContainerCustomizer and runs during the build. Pod identity (ServiceAccount), the
-// default pod/container SecurityContext, the config ConfigMap mount, the data PVC, the shared
-// Vector log volume (on the renamed "zookeeper" container), the CSI secret (TLS) volumes
-// (registered via buildCtx.VolumeProviders), the image, ports, resources and injected
-// sidecars/init containers are already in place from the framework builder.
-func (h *ZkRoleGroupHandler) customizeMainContainer(
-	main *corev1.Container,
-	buildCtx *reconciler.RoleGroupBuildContext,
-	zkSecurity *security.ZookeeperSecurity,
-) error {
-	roleGroupConfig := buildCtx.RoleGroupSpec.GetConfig()
-
-	// The framework hands us the assembled primary container: already named "zookeeper"
-	// (BaseRoleGroupHandler.MainContainerName), already carrying the framework-managed
-	// config/data/log mounts plus the registered CSI secret (TLS) volume mounts and the resolved
-	// image, so we only set the command, env and probes here.
-	main.Command = []string{"/bin/bash", "-x", "-euo", "pipefail", "-c"}
-	main.Args = h.getMainContainerArgs()
-	// User envOverrides (already on the container from the builder) win over our defaults.
-	main.Env = append(h.getEnvVars(roleGroupConfig), main.Env...)
-	main.ReadinessProbe = h.getReadinessProbe(zkSecurity)
-	main.LivenessProbe = h.getLivenessProbe(zkSecurity)
-	main.StartupProbe = h.getStartupProbe(zkSecurity)
-	return nil
+// mainContainerCommand is the primary container's entrypoint. The script is carried inline as the
+// final `-c` argument rather than as container args, because args are the user's channel
+// (cliOverrides) and a product writing them would silently delete what the user wrote.
+func (h *ZkRoleGroupHandler) mainContainerCommand() []string {
+	return append([]string{"/bin/bash", "-x", "-euo", "pipefail", "-c"}, h.getMainContainerArgs()...)
 }
 
 // buildPrepareContainer builds the myid init container. It is one-shot (nil RestartPolicy)
@@ -169,29 +130,40 @@ cp -RL ${CONFIG_DIR_MOUNT}* ${CONFIG_DIR}`, opgoconstant.KubedoopConfigDirMount,
 	return []string{strings.Join(args, "\n")}
 }
 
-// getEnvVars returns environment variables for the main container.
-func (h *ZkRoleGroupHandler) getEnvVars(
-	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
-) []corev1.EnvVar {
-	// The myid file is written by the prepare init container (buildPrepareContainer); the main
-	// container never reads MYID_OFFSET, so it is intentionally not set here.
-	envs := []corev1.EnvVar{
+// zkServerHeapEnvName is the env var ZooKeeper's start script reads for the JVM heap, in MiB.
+const zkServerHeapEnvName = "ZK_SERVER_HEAP"
+
+// staticEnvVars returns the env the role can DECLARE — the values that follow from the product
+// alone, with no dependency on the role group's resolved config.
+//
+// The myid file is written by the prepare init container (buildPrepareContainer); the main
+// container never reads MYID_OFFSET, so it is intentionally not set here.
+func (h *ZkRoleGroupHandler) staticEnvVars() []corev1.EnvVar {
+	return []corev1.EnvVar{
 		{Name: "SERVER_JVMFLAGS", Value: util.JvmJmxOpts(zkv1alpha1.MetricsPort)},
 	}
+}
 
-	// Heap limit from memory resources.
-	if roleGroupConfig != nil && roleGroupConfig.Resources != nil && roleGroupConfig.Resources.Memory != nil {
-		memoryLimit := roleGroupConfig.Resources.Memory.Limit
-		heapLimit := float64(memoryLimit.Value()/(1024*1024)) * 0.8
-		if heapLimit > 0 {
-			envs = append(envs, corev1.EnvVar{
-				Name:  "ZK_SERVER_HEAP",
-				Value: fmt.Sprintf("%.0f", heapLimit),
-			})
-		}
+// serverHeapEnv derives the JVM heap (MiB) from a role group's EFFECTIVE memory limit — 80% of it,
+// leaving the remainder for the JVM's own non-heap footprint. It returns "" when no limit survived
+// the fold, which leaves ZooKeeper on its built-in default rather than pinning a guessed number.
+//
+// This cannot be declared beside the memory default it reads: the value only exists after the
+// framework has folded that default under the CR's two levels, which is why it is contributed from
+// ResolveRoleGroup instead.
+func serverHeapEnv(roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec) string {
+	if roleGroupConfig == nil || roleGroupConfig.Resources == nil || roleGroupConfig.Resources.Memory == nil {
+		return ""
 	}
-
-	return envs
+	memoryLimit := roleGroupConfig.Resources.Memory.Limit
+	if memoryLimit == nil {
+		return ""
+	}
+	heapLimit := float64(memoryLimit.Value()/(1024*1024)) * 0.8
+	if heapLimit <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%.0f", heapLimit)
 }
 
 // containerPorts returns the main container ports.

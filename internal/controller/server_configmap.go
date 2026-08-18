@@ -5,6 +5,7 @@ import (
 	"maps"
 	"sort"
 
+	"github.com/zncdatadev/operator-go/pkg/productlogging"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	opgosecurity "github.com/zncdatadev/operator-go/pkg/security"
 	zkv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
@@ -34,10 +35,10 @@ func (h *ZkRoleGroupHandler) buildConfigMap(
 
 	// 3. Framework-owned logging config: logback.xml (from the deep-merged CRD logging spec, with
 	// the file appender gated on Vector) and, when Vector is enabled and the CR exposes the
-	// aggregator ConfigMap (VectorAggregatorConfigMapName), vector.yaml. h.LoggingContainers is
+	// aggregator ConfigMap (VectorAggregatorConfigMapName), vector.yaml. zkServerLogging is
 	// the single declaration that also drives the shared log volume, so config and volume stay in
 	// lockstep.
-	loggingData, err := reconciler.RenderLoggingConfigMapData(buildCtx, h.LoggingContainers)
+	loggingData, err := reconciler.RenderLoggingConfigMapData(buildCtx, []productlogging.ContainerLogging{zkServerLogging})
 	if err != nil {
 		return nil, fmt.Errorf("failed to render logging config: %w", err)
 	}

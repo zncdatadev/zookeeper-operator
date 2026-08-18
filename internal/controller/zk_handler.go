@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/productlogging"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
@@ -14,7 +13,6 @@ import (
 	"github.com/zncdatadev/zookeeper-operator/internal/common"
 	"github.com/zncdatadev/zookeeper-operator/internal/constant"
 	"github.com/zncdatadev/zookeeper-operator/internal/security"
-	"github.com/zncdatadev/zookeeper-operator/internal/util/version"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -30,7 +28,7 @@ import (
 // files). The myid init container is injected through the SidecarManager like any other
 // container — see registerServerContainers.
 type ZkRoleGroupHandler struct {
-	reconciler.BaseRoleGroupHandler[*zkv1alpha1.ZookeeperCluster]
+	*reconciler.BaseRoleGroupHandler[*zkv1alpha1.ZookeeperCluster]
 }
 
 var _ reconciler.RoleGroupHandler[*zkv1alpha1.ZookeeperCluster] = &ZkRoleGroupHandler{}
@@ -62,36 +60,80 @@ var zkServerLogging = productlogging.ContainerLogging{
 // NewZkRoleGroupHandler creates a handler with the framework-level options that are constant
 // across reconciliations. Per-CR options (image, ports) are set in BuildResources.
 func NewZkRoleGroupHandler(scheme *runtime.Scheme) *ZkRoleGroupHandler {
-	h := &ZkRoleGroupHandler{}
-	h.Scheme = scheme
-	h.ImagePullPolicy = corev1.PullIfNotPresent
-	h.RoleImages = map[string]string{}
-	// ProductName names the product: it supplies the repository path segment of the resolved image
-	// and the app.kubernetes.io/{name,version} labels. ImageDefaults fills in whatever spec.image
-	// leaves empty, re-evaluated every reconcile — which is why KubedoopVersion can be the
-	// operator's own build version, so an operator upgrade moves existing clusters onto the
-	// co-released product image. Kubedoop publishes ZooKeeper images only with the
-	// "-kubedoop<version>" suffix, so that field must always resolve to something.
-	h.ProductName = zkv1alpha1.DefaultProductName
-	h.ImageDefaults = commonsv1alpha1.ImageSpec{
-		Repo:            zkv1alpha1.DefaultRepository,
-		ProductVersion:  zkv1alpha1.DefaultProductVersion,
-		KubedoopVersion: version.BuildVersion,
-	}
-	// ZK peers must resolve each other before readiness, and data must be persistent.
-	h.PublishNotReadyAddresses = true
-	h.StorageMountPath = constant.KubedoopDataDir
-	// Rename the primary container to "zookeeper" (backward compat with the pre-framework
-	// layout) and declare it as the logging container. The framework renames the container
-	// before injecting the shared Vector log volume, so the producer mounts it on "zookeeper".
-	h.MainContainerName = common.ZkServerContainerName
-	h.LoggingContainers = []productlogging.ContainerLogging{zkServerLogging}
-	// Keep the pre-framework log volume size (the framework default is larger).
-	h.LogVolumeSize = zkv1alpha1.MaxZKLogFileSize
+	base := reconciler.NewBaseRoleGroupHandler[*zkv1alpha1.ZookeeperCluster](scheme)
 	// Product-owned identity labels drive all resource selectors (decoupled from the
-	// descriptive app.kubernetes.io/* labels).
-	h.LabelDomain = LabelDomain
-	return h
+	// descriptive app.kubernetes.io/* labels). This is reconcile-invariant, so it stays on the
+	// handler; everything a ROLE is made of is declared per pass in DeclareRoles.
+	base.LabelDomain = LabelDomain
+	return &ZkRoleGroupHandler{BaseRoleGroupHandler: base}
+}
+
+// DeclareRoles implements reconciler.RoleProvider: everything the server role is made of, produced
+// once per reconcile pass with the CR in hand.
+//
+// Taking the CR is what lets this be static data. The client port moves when the CR enables TLS and
+// the anti-affinity selector names the cluster, and both are computed here from THIS cluster rather
+// than assigned into handler state that the next cluster would inherit.
+func (h *ZkRoleGroupHandler) DeclareRoles(
+	ctx context.Context,
+	k8sClient client.Client,
+	cr *zkv1alpha1.ZookeeperCluster,
+) (reconciler.RoleCatalog, error) {
+	// The security resolution reads the referenced SecretClasses, which is why this hook takes a
+	// client: the ports below depend on whether the cluster speaks TLS.
+	zkSecurity, err := security.NewZookeeperSecurity(ctx, k8sClient, cr.Spec.ClusterConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create zookeeper security: %w", err)
+	}
+
+	configDefaults, err := serverConfigDefaults(cr.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	return reconciler.RoleCatalog{
+		serverRoleName: {
+			// Name the primary container "zookeeper" (backward compat with the pre-framework
+			// layout); it is also the logging producer, so the shared Vector log volume is mounted
+			// on that name.
+			MainContainerName: common.ZkServerContainerName,
+			ContainerPorts:    h.containerPorts(zkSecurity),
+			ServicePorts:      h.servicePorts(zkSecurity),
+			// The entrypoint carries the script inline: arguments are deliberately not a
+			// declaration field, because cliOverrides is the user's channel for them and a
+			// product appending args would silently delete what the user wrote.
+			Command:                  h.mainContainerCommand(),
+			ReadinessProbe:           h.getReadinessProbe(zkSecurity),
+			LivenessProbe:            h.getLivenessProbe(zkSecurity),
+			StartupProbe:             h.getStartupProbe(zkSecurity),
+			DataVolume:               &reconciler.DataVolume{Name: zkv1alpha1.DataDirName, MountPath: constant.KubedoopDataDir},
+			PublishNotReadyAddresses: true, // ZK peers must resolve each other before readiness.
+			LogProducers:             []productlogging.ContainerLogging{zkServerLogging},
+			// Keep the pre-framework log volume size (the framework default is larger).
+			LogVolumeSize:  zkv1alpha1.MaxZKLogFileSize,
+			ConfigDefaults: configDefaults,
+			Env:            h.staticEnvVars(),
+		},
+	}, nil
+}
+
+// ResolveRoleGroup implements reconciler.RoleGroupResolver: the values that follow from a role
+// group's EFFECTIVE config, which only exists after the framework has folded the product's defaults
+// under the CR's role and role group levels.
+//
+// The JVM heap is exactly that kind of value — it is a function of the memory limit that survived
+// the fold, so it cannot be declared alongside the defaults that feed it.
+func (h *ZkRoleGroupHandler) ResolveRoleGroup(
+	_ context.Context,
+	_ client.Client,
+	_ *zkv1alpha1.ZookeeperCluster,
+	rg *reconciler.RoleGroupBuildContext,
+) (*reconciler.Contribution, error) {
+	heap := serverHeapEnv(rg.RoleGroupSpec.GetConfig())
+	if heap == "" {
+		return nil, nil
+	}
+	return &reconciler.Contribution{EnvVars: map[string]string{zkServerHeapEnvName: heap}}, nil
 }
 
 // BuildResources builds all Kubernetes resources for a Zookeeper server role group.
@@ -111,52 +153,21 @@ func (h *ZkRoleGroupHandler) BuildResources(
 		return nil, fmt.Errorf("failed to create zookeeper security: %w", err)
 	}
 	secretProvisioner := h.buildSecretProvisioner(zkSecurity)
-	// Resolve the image from the same input and through the same function the framework uses for
-	// the main container, because the prepare init container below runs the product image too and
-	// must not drift from it. An unresolvable spec.image is reported rather than silently replaced
-	// with some other version.
-	var imageSpec *commonsv1alpha1.ImageSpec
-	if buildCtx.ClusterSpec != nil {
-		imageSpec = buildCtx.ClusterSpec.Image
-	}
-	image, err := imageSpec.ResolveImage(h.ProductName, h.ImageDefaults)
-	if err != nil {
-		return nil, err
-	}
 
-	// Per-CR inputs go on the build context, not the handler: one handler instance serves every
-	// ZookeeperCluster, so writing them to its fields would let concurrent reconciles of different
-	// clusters overwrite each other.
-	buildCtx.ContainerPorts = h.containerPorts(zkSecurity)
-	buildCtx.ServicePorts = h.servicePorts(zkSecurity)
-	// Fill in ZooKeeper role group defaults (storage, CPU/memory, anti-affinity, graceful
-	// shutdown) the framework does not supply, before base.BuildResources consumes the config.
-	if err := h.ensureServerConfigDefaults(buildCtx); err != nil {
-		return nil, err
-	}
-
-	// Register the containers that the SidecarManager will inject (myid init container +
-	// product image on Vector). This must happen before base.BuildResources(), which runs
-	// SidecarManager.InjectAll() internally.
+	// Register the containers that the SidecarManager will inject. This must happen before
+	// base.BuildResources(), which runs SidecarManager.InjectAll() internally.
 	// The prepare init container writes each pod's myid as (base + ordinal); the base is this
-	// role group's non-overlapping myid start, so myids stay unique across the whole ensemble.
-	h.registerServerContainers(buildCtx, image, serverGroupBaseIDs(cr)[buildCtx.RoleGroupName])
+	// role group's non-overlapping myid start, so myids stay unique across the whole ensemble. It
+	// runs the product image, taken from the reference the framework already resolved for the main
+	// container so the two cannot drift.
+	h.registerServerContainers(buildCtx, buildCtx.ResolvedImage.Reference,
+		serverGroupBaseIDs(cr)[buildCtx.RoleGroupName])
 
 	// Hand the CSI secret (TLS) volumes to the framework so base.BuildResources() injects them
 	// into the pod and the main container, instead of appending them by hand afterwards.
 	// VolumeProviders lives on the build context (rebuilt each reconcile), so registrations never
 	// accumulate across reconciles or leak across CRs.
 	buildCtx.VolumeProviders = append(buildCtx.VolumeProviders, secretProvisioner)
-
-	// Declare the ZooKeeper specifics of the primary container through the framework's hook rather
-	// than editing the built StatefulSet: the customizer is handed the assembled container by name,
-	// where the old post-build code indexed Containers[0] — a position the framework never promised
-	// and that any sidecar provider inserting a container earlier would silently break. It runs
-	// after the framework has applied envOverrides (so appending them after ours keeps the user's
-	// last word) and before podOverrides are strategic-merged (so those still outrank us).
-	buildCtx.MainContainerCustomizer = func(c *corev1.Container) error {
-		return h.customizeMainContainer(c, buildCtx, zkSecurity)
-	}
 
 	// Let the framework build the skeleton: canonical labels, headless Service (with
 	// PublishNotReadyAddresses), client Service, StatefulSet (data PVC + injected

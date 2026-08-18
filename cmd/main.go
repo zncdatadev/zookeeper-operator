@@ -26,6 +26,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	opcommon "github.com/zncdatadev/operator-go/pkg/common"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	zookeeperv1alpha1 "github.com/zncdatadev/zookeeper-operator/api/v1alpha1"
@@ -179,8 +180,28 @@ func main() {
 			Recorder:           mgr.GetEventRecorderFor("zookeeper-cluster-controller"), //nolint:staticcheck
 			RoleGroupHandler:   zkHandler,
 			ServiceHealthCheck: controller.NewZkServiceHealthCheck(podExec),
-			Prototype:          &zookeeperv1alpha1.ZookeeperCluster{},
-			ExtensionRegistry:  extensionRegistry,
+			// Everything the server role is made of — ports, primary container name, command,
+			// probes, data volume, log producers, config defaults — is declared once per pass with
+			// the CR in hand, instead of being spread across handler state.
+			RoleProvider: zkHandler,
+			// The heap follows from the role group's EFFECTIVE memory limit, so it is contributed
+			// after the fold rather than declared beside the default that feeds it.
+			RoleGroupResolver: zkHandler,
+			// Read every reconcile, so an operator upgrade moves existing clusters onto the
+			// co-released product image. A mutating webhook cannot do this: its defaults are
+			// persisted at admission and never recomputed, freezing kubedoopVersion at whatever
+			// version first admitted the CR. Kubedoop publishes ZooKeeper images only with the
+			// "-kubedoop<version>" suffix, so that field must always resolve to something.
+			ImageResolution: reconciler.ImageResolution{
+				ProductName: zookeeperv1alpha1.DefaultProductName,
+				Defaults: commonsv1alpha1.ImageSpec{
+					Repo:            zookeeperv1alpha1.DefaultRepository,
+					ProductVersion:  zookeeperv1alpha1.DefaultProductVersion,
+					KubedoopVersion: version.BuildVersion,
+				},
+			},
+			Prototype:         &zookeeperv1alpha1.ZookeeperCluster{},
+			ExtensionRegistry: extensionRegistry,
 		})
 	if err != nil {
 		setupLog.Error(err, "unable to create GenericReconciler", "controller", "ZookeeperCluster")
