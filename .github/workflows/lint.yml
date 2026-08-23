@@ -46,4 +46,7 @@ jobs:
       - name: Run linter
         uses: golangci/golangci-lint-action@v9
         with:
+          # Pinned, so a new upstream release cannot break the pipeline without a code
+          # change — and read from the Makefile above rather than written out again here,
+          # so CI and `make lint` cannot drift apart.
           version: ${{ steps.golangci.outputs.version }}
