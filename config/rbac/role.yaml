@@ -8,7 +8,6 @@ rules:
   - ""
   resources:
   - configmaps
-  - secrets
   - serviceaccounts
   - services
   verbs:
@@ -22,11 +21,24 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
   - pods
   verbs:
   - get
   - list
   - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods/exec
+  verbs:
+  - create
 - apiGroups:
   - apps
   resources:
@@ -38,6 +50,14 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - authentication.kubedoop.dev
+  resources:
+  - authenticationclasses
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - discovery.k8s.io
@@ -62,15 +82,10 @@ rules:
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
-  - clusterroles
   - rolebindings
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - zookeeper.kubedoop.dev

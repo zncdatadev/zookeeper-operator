@@ -23,17 +23,19 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Check CRDs sync
+      - name: Check generated files sync
         run: |
-          # Use `make manifests` to generate the CRDs
-          make manifests
-          # Check if the CRDs are in sync with the manifests.
+          # Regenerate everything derived from the Go sources and the kubebuilder markers. The chart
+          # carries its own copies of the CRDs and of the operator ClusterRole rules, and those are
+          # what chart-e2e and the release actually deploy, so regenerating only config/ would leave
+          # the deployed artifacts unverified — which is how a missing RBAC rule reached users twice.
+          make manifests helm-crd-sync helm-rbac-sync
           # Stage everything first so newly generated (untracked) files are
           # detected too; plain `git diff` ignores untracked files.
           git add -A
           if ! git diff --cached --exit-code; then
-            echo "CRDs are not in sync with the manifests."
-            echo "Please run 'make manifests' to update the CRDs."
+            echo "Generated files are not in sync with the sources."
+            echo "Please run 'make manifests helm-crd-sync helm-rbac-sync' and commit the result."
             exit 1
           fi
 

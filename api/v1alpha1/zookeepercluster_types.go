@@ -18,8 +18,9 @@ package v1alpha1
 
 import (
 	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
-	"github.com/zncdatadev/operator-go/pkg/constants"
+	"github.com/zncdatadev/operator-go/pkg/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 const (
@@ -80,13 +81,126 @@ type ZookeeperCluster struct {
 	Status ZookeeperClusterStatus `json:"status,omitempty"`
 }
 
+// ClusterInterface implementation
+
+func (z *ZookeeperCluster) GetSpec() *commonsv1alpha1.GenericClusterSpec {
+	return z.Spec.ToGenericSpec()
+}
+
+// VectorAggregatorConfigMapName implements reconciler.VectorAggregatorProvider so the framework
+// owns vector.yaml generation: when a role group enables the Vector agent, the GenericReconciler
+// resolves the aggregator address from this ConfigMap and renders vector.yaml into the role group
+// ConfigMap. Returns "" when unset (the framework then omits vector.yaml).
+func (z *ZookeeperCluster) VectorAggregatorConfigMapName() string {
+	if z.Spec.ClusterConfig == nil || z.Spec.ClusterConfig.VectorAggregatorConfigMapName == nil {
+		return ""
+	}
+	return *z.Spec.ClusterConfig.VectorAggregatorConfigMapName
+}
+
+// GetStatus returns the cluster status.
+func (z *ZookeeperCluster) GetStatus() *commonsv1alpha1.GenericClusterStatus {
+	return &z.Status.GenericClusterStatus
+}
+
+// SetStatus updates the cluster status.
+func (z *ZookeeperCluster) SetStatus(status *commonsv1alpha1.GenericClusterStatus) {
+	z.Status.GenericClusterStatus = *status
+}
+
+// GetObjectMeta returns the object metadata.
+func (z *ZookeeperCluster) GetObjectMeta() *metav1.ObjectMeta {
+	return &z.ObjectMeta
+}
+
+// GetScheme returns the cached runtime scheme.
+func (z *ZookeeperCluster) GetScheme() *runtime.Scheme {
+	return cachedScheme
+}
+
+// DeepCopyCluster creates a deep copy of the cluster.
+func (z *ZookeeperCluster) DeepCopyCluster() common.ClusterInterface {
+	return z.DeepCopy()
+}
+
+// GetRuntimeObject returns the underlying runtime.Object.
+func (z *ZookeeperCluster) GetRuntimeObject() runtime.Object {
+	return z
+}
+
+// ToGenericSpec adapts ZookeeperClusterSpec to GenericClusterSpec.
+func (s *ZookeeperClusterSpec) ToGenericSpec() *commonsv1alpha1.GenericClusterSpec {
+	result := &commonsv1alpha1.GenericClusterSpec{
+		ClusterOperation: s.ClusterOperationSpec,
+	}
+
+	// Image adapter
+	if s.Image != nil {
+		result.Image = &commonsv1alpha1.ImageSpec{
+			Custom:          s.Image.Custom,
+			Repo:            s.Image.Repo,
+			ProductVersion:  s.Image.ProductVersion,
+			KubedoopVersion: s.Image.KubedoopVersion,
+		}
+	}
+
+	// Roles adapter: servers -> Roles["server"]
+	if s.Servers != nil {
+		roleSpec := commonsv1alpha1.RoleSpec{
+			RoleConfig: s.Servers.RoleConfig,
+		}
+
+		// Config adapter: ConfigSpec embeds RoleGroupConfigSpec
+		if s.Servers.Config != nil {
+			roleSpec.Config = s.Servers.Config.RoleGroupConfigSpec
+		}
+
+		// Overrides from embedded OverridesSpec
+		if s.Servers.OverridesSpec != nil {
+			roleSpec.ConfigOverrides = s.Servers.ConfigOverrides
+			roleSpec.EnvOverrides = s.Servers.EnvOverrides
+			roleSpec.CliOverrides = s.Servers.CliOverrides
+			roleSpec.PodOverrides = s.Servers.PodOverrides
+		}
+
+		// JVM args -> CliOverrides
+		if s.Servers.JVMArgumentOverrides != nil {
+			roleSpec.CliOverrides = append(roleSpec.CliOverrides, s.Servers.JVMArgumentOverrides.Add...)
+		}
+
+		// RoleGroups adapter: convert product RoleGroupSpec to generic
+		roleGroups := make(map[string]commonsv1alpha1.RoleGroupSpec)
+		for name, rg := range s.Servers.RoleGroups {
+			adapted := commonsv1alpha1.RoleGroupSpec{}
+			if rg.Replicas > 0 {
+				r := rg.Replicas
+				adapted.Replicas = &r
+			}
+			if rg.Config != nil {
+				adapted.Config = rg.Config.RoleGroupConfigSpec
+			}
+			if rg.OverridesSpec != nil {
+				adapted.ConfigOverrides = rg.ConfigOverrides
+				adapted.EnvOverrides = rg.EnvOverrides
+				adapted.CliOverrides = rg.CliOverrides
+				adapted.PodOverrides = rg.PodOverrides
+			}
+			roleGroups[name] = adapted
+		}
+		roleSpec.RoleGroups = roleGroups
+
+		result.Roles = map[string]commonsv1alpha1.RoleSpec{
+			"server": roleSpec,
+		}
+	}
+
+	return result
+}
+
 type ZookeeperClusterStatus struct {
-	// +kubebuilder:validation:Optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	commonsv1alpha1.GenericClusterStatus `json:",inline"`
 	// +kubebuilder:validation:Optional
 	ClientConnections map[string]string `json:"clientConnections"`
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 }
 
 // +kubebuilder:object:root=true
@@ -119,7 +233,7 @@ type ClusterConfigSpec struct {
 	// +kubebuilder:validation:optional
 	// +kubebuilder:validation:Enum="cluster-internal";"external-unstable"
 	// +kubebuilder:default="cluster-internal"
-	ListenerClass constants.ListenerClass `json:"listenerClass"`
+	ListenerClass ListenerClass `json:"listenerClass"`
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default:=1
@@ -237,6 +351,11 @@ type ConfigSpec struct {
 	TickTime int32 `json:"tickTime,omitempty"`
 }
 
+// cachedScheme is initialized once and reused across all reconcile calls.
+var cachedScheme *runtime.Scheme
+
 func init() {
 	SchemeBuilder.Register(&ZookeeperCluster{}, &ZookeeperClusterList{})
+	cachedScheme = runtime.NewScheme()
+	_ = SchemeBuilder.AddToScheme(cachedScheme)
 }

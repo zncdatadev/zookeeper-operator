@@ -21,7 +21,7 @@ spec:
           - name: available_replicas
             value: 1
         file: zk-assert.yaml
-    # stop zookeeper cluster, clusterOperation.stopped: true
+    # stop: clusterOperation.stopped=true scales pods to 0 (ConfigMaps/PVCs/Services preserved)
   - name: stop zookeeper cluster
     try:
     - apply:
@@ -34,22 +34,7 @@ spec:
           - name: available_replicas
             value: 0
         file: zk-assert.yaml
-    # pause zookeeper cluster, clusterOperation.reconciliationPaused: true
-  - name: pause zookeeper cluster
-    try:
-    - apply:
-        bindings:
-          - name: cluster_paused
-            value: true
-          - name: cluster_stopped
-            value: false
-        file: zk.yaml
-    - assert:
-        bindings:
-          - name: available_replicas
-            value: 1
-        file: zk-assert.yaml
-    # restart zookeeper cluster, clusterOperation.stopped: false, clusterOperation.reconciliationPaused: false
+    # resume: clearing stopped scales pods back up
   - name: restart zookeeper cluster
     try:
     - apply:
@@ -58,4 +43,38 @@ spec:
         bindings:
           - name: available_replicas
             value: 1
+        file: zk-assert.yaml
+    # pause freezes reconciliation: requesting stopped=true WHILE paused must have NO effect (a
+    # paused operator does not touch resources). After giving the operator time to reconcile, the
+    # cluster must still be running — if pause were ignored, the stop would apply and this fails.
+  - name: pause freezes a requested stop
+    try:
+    - apply:
+        bindings:
+          - name: cluster_paused
+            value: true
+          - name: cluster_stopped
+            value: true
+        file: zk.yaml
+    - sleep:
+        duration: 20s
+    - assert:
+        bindings:
+          - name: available_replicas
+            value: 1
+        file: zk-assert.yaml
+    # unpause: the previously-frozen desired state (stopped=true) now takes effect -> scale to 0
+  - name: unpause applies the pending stop
+    try:
+    - apply:
+        bindings:
+          - name: cluster_paused
+            value: false
+          - name: cluster_stopped
+            value: true
+        file: zk.yaml
+    - assert:
+        bindings:
+          - name: available_replicas
+            value: 0
         file: zk-assert.yaml

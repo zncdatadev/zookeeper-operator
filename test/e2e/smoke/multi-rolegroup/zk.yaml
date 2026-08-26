@@ -1,0 +1,14 @@
+apiVersion: zookeeper.kubedoop.dev/v1alpha1
+kind: ZookeeperCluster
+metadata:
+  name: test-zk
+spec:
+  image:
+    productVersion: ($values.product_version)
+  servers:
+    roleGroups:
+      # Two role groups must form ONE ensemble (3 members), not two disjoint quorums.
+      default:
+        replicas: 2
+      secondary:
+        replicas: 1

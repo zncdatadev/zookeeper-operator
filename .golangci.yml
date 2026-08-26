@@ -22,6 +22,10 @@ linters:
     - unparam
     - unused
   settings:
+    goconst:
+      # Test fixtures legitimately repeat short literals (role names, namespaces);
+      # only enforce de-duplication in non-test code.
+      ignore-tests: true
     revive:
       rules:
         - name: comment-spacings

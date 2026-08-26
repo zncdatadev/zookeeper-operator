@@ -277,6 +277,26 @@ HELM ?= helm
 helm-crd-sync: manifests kustomize ## Sync CRDs to helm chart for the operator
 	"$(KUSTOMIZE)" build config/crd > deploy/helm/$(PROJECT_NAME)/crds/crds.yaml
 
+# The chart's operator ClusterRole duplicates the rules controller-gen writes into
+# config/rbac/role.yaml from the kubebuilder markers. Only the rules are generated: the document is a
+# helm template whose name and labels come from helpers and whose body is wrapped in an
+# `{{- if .Values.serviceAccount.create -}}` guard, so it cannot be replaced wholesale and YAML-aware
+# tools cannot parse it in place. Splicing by line range keeps that chart-owned wrapper intact and
+# needs no tool beyond sed: `rules:` is the last top-level key of role.yaml, so the generated block
+# is simply "from ^rules: to EOF".
+#
+# Without this, adding a kubebuilder marker updates the kustomize deployment and silently leaves the
+# chart — which is what chart-e2e, the release and every user actually deploy — behind. See #371.
+.PHONY: helm-rbac-sync ## Sync the generated operator ClusterRole rules to the helm chart.
+helm-rbac-sync: manifests ## Sync the generated operator ClusterRole rules to the helm chart
+	@tmp=$$(mktemp); \
+	{ \
+	  sed -n '1,/^rules:/p' deploy/helm/$(PROJECT_NAME)/templates/clusterrole.yaml | sed '$$d'; \
+	  sed -n '/^rules:/,$$p' config/rbac/role.yaml; \
+	  echo '{{- end }}'; \
+	} > $$tmp; \
+	mv $$tmp deploy/helm/$(PROJECT_NAME)/templates/clusterrole.yaml
+
 .PHONY: helm-chart-package ## Package helm chart for the operator.
 helm-chart-package: ## Package helm chart for the operator.
 	mkdir -p target/charts
@@ -299,7 +319,17 @@ CHAINSAW_KUBECONFIG ?= .kubeconfig
 # When run `kind create --image kindest/node:v${KIND_K8S_VERSION}`, the node image version of k8s will be used to create the kind cluster,
 # and the target kubeconfig file will be named as `$(CHAINSAW_KUBECONFIG)` (default: `.kubeconfig`).
 # So if you want to use the target cluster, run `export KUBECONFIG=$(CHAINSAW_KUBECONFIG)` (default: `.kubeconfig`).
-KIND_K8S_VERSION ?= 1.26.15
+#
+# Minimum k8s 1.29: base-operator-go runs the Vector log agent as a native sidecar (an init
+# container with restartPolicy=Always plus a readinessProbe). The SidecarContainers feature
+# gate is only on by default from 1.29 onward; on older nodes (e.g. 1.26) the API server drops
+# the gated init-container restartPolicy but keeps the readinessProbe, so pod validation fails
+# with "readinessProbe: Forbidden: may not be set for init containers" and the StatefulSet
+# creates zero pods. Do not lower this below 1.29.
+#
+# Pinned to the newest published kindest/node image (see the kind releases link below); bump
+# it as new k8s releases ship, keeping 1.29 as the hard floor.
+KIND_K8S_VERSION ?= 1.36.1
 # The kind node image can found in https://github.com/kubernetes-sigs/kind/releases.
 KIND_IMAGE ?= kindest/node:v${KIND_K8S_VERSION}
 # Define operator dependencies to be installed before running chainsaw tests.

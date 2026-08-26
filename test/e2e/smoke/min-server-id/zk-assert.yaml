@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-zk-server-default
+spec:
+  template:
+    spec:
+      containers:
+        - name: zookeeper
+status:
+  # All three replicas becoming Available proves the ensemble formed: each pod's readiness
+  # probe (srvr/ruok) only succeeds once quorum is established, which requires the myid files
+  # to line up with the server.5/6/7 entries in zoo.cfg.
+  availableReplicas: 3
+  replicas: 3
